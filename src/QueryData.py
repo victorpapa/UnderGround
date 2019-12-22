@@ -11,18 +11,19 @@ class Data_fetcher:
     def get_user_count(self):
         return len(self.members)
 
-    # returns a dictionary mapping user IDs to a pair consisting of
-    # the time elapsed since last log in, and 
-    # the age of the user account, 
-    # both represented by tuples (days, hours, minutes, seconds)
+    # returns a list of Member objects that correspond to active users
     def get_active_users(self):
-        ret = {}
+        ret = []
 
         for m in self.members:
-            active = m.get_last_active_dist()
-            age = m.get_age()
 
             if m.is_active():
-                ret[m.IdMember] = (active, age)
+                ret += [m]
 
         return ret
+
+    # returns the Member object corresponding to the member with ID = ID
+    def get_user_by_id(self, ID):
+        for m in self.members:
+            if m.IdMember == ID:
+                return m

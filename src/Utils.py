@@ -20,10 +20,10 @@ def get_edit_distance(username1, username2):
     dp = [[0 for j in range(l2 + 1)] for i in range(l1 + 1)]
 
     for i in range(l1 + 1):
-        dp[i][0] = i
+        dp[i][0] = i * indel_cost
 
     for j in range(l2 + 1):
-        dp[0][j] = j
+        dp[0][j] = j * indel_cost
         
     for i in range(1, l1+1):
         for j in range(1, l2+1):
@@ -31,9 +31,10 @@ def get_edit_distance(username1, username2):
             if username1[i-1] == username2[j-1]:
                 val = dp[i-1][j-1]
             else:
-                val = dp[i-1][j] + indel_cost # insertion
-                val = min(val, dp[i][j-1] + indel_cost) # deletion
-                val = min(val, dp[i-1][j-1] + edit_cost) # replacement
+                val = dp[i-1][j-1] + edit_cost # replacement
+                
+            val = min(val, dp[i][j-1] + indel_cost) # deletion
+            val = min(val, dp[i-1][j] + indel_cost) # insertion
 
             dp[i][j] = val
 
@@ -43,6 +44,6 @@ def get_edit_distance(username1, username2):
 if __name__ == "__main__":
 
     a = "abc"
-    b = "abc12"
+    b = "abcabc"
 
     print(get_edit_distance(a, b))

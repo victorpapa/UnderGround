@@ -15,5 +15,5 @@ class Post:
         self.parsed = parsed # boolean
         self.Site = Site # integer
         self.CitedPost = CitedPost # bigint[] 
-        self.AuthorName = AuthorName # character varying
+        self.AuthorName = AuthorName # characterD
         self.Likes = Likes # integer
