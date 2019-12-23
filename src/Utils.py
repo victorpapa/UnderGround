@@ -154,12 +154,18 @@ def expand_features(init_features, all_features):
         init_features[f] = 0
 
 # appends missing elements from to_concat to total
-def concat_features(total, to_concat):
+def concat_feature_dicts(total, to_concat):
     for f in to_concat:
         if f in total:
-            continue
+            total[f] += to_concat[f]
+        else:
+            total[f] = to_concat[f]
 
-        total += [f]
+# to_be_filled will contain all the keys from total that it doesn't contain, all initialised to 0
+def fill_feature_dict(total, to_be_filled):
+    for f in total:
+        if f not in to_be_filled:
+            to_be_filled[f] = 0
 
 # returns the kets of a dictionary as a lsit
 def get_dict_keys(dict):
