@@ -90,7 +90,32 @@ def get_n_grams(post, n):
 
     return ret
 
+# input: post as a list of tokens
+# returns a dictionary mapping each word to the number of occurences
+def get_bow_freq(post):
+    ret = {}
+
+    for w in post:
+        if w in ret:
+            ret[w] = ret[w] + 1
+        else:
+            ret[w] = 1
+
+    return ret
+
+# input: post as a list of tokens
+# returns a dictionary mapping each word to 1, if the word appears in the post, or 0 otherwise
+def get_bow_pres(post):
+    ret = {}
+
+    for w in post:
+        ret[w] = 1
+
+    return ret
+
 if __name__ == "__main__":
 
     print(get_list_from_string("a b c d e f"))
     print(get_n_grams(get_list_from_string("a b c d e f"), 2))
+    print(get_bow_freq(get_list_from_string("a a c c e f")))
+    print(get_bow_pres(get_list_from_string("a a c c e f")))
