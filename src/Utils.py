@@ -144,15 +144,6 @@ def get_knn(target, centres):
 
     return ret
 
-# input: 2 dictionaries, each mapping a feature to its value
-# output: the init_features will also contain all entries in all_features, initialised with 0
-def expand_features(init_features, all_features):
-    for f in all_features:
-        if f in init_features:
-            continue
-
-        init_features[f] = 0
-
 # appends missing elements from to_concat to total
 def concat_feature_dicts(total, to_concat):
     for f in to_concat:
@@ -162,12 +153,12 @@ def concat_feature_dicts(total, to_concat):
             total[f] = to_concat[f]
 
 # to_be_filled will contain all the keys from total that it doesn't contain, all initialised to 0
-def fill_feature_dict(total, to_be_filled):
+def fill_feature_dict(to_be_filled, total):
     for f in total:
         if f not in to_be_filled:
             to_be_filled[f] = 0
 
-# returns the kets of a dictionary as a lsit
+# returns the keys of a dictionary as a lsit
 def get_dict_keys(dict):
     ret = []
 
@@ -176,14 +167,47 @@ def get_dict_keys(dict):
 
     return ret
 
+# returns the values of a dictionary as a lsit
+def get_dict_values(dict):
+    ret = []
+
+    for f in dict:
+        ret += dict[f]
+
+    return ret
+
+# normalises the feature vector
+def normalise_feature_vector(features):
+    total = 0
+
+    for x in features:
+        total += x
+
+    for i in range(len(features)):
+        features[i] = features[i] / total
+
+# returns a dict that only contains the entries in to_be_shrunk whose keys are present in master
+def shrink_dict(to_be_shrunk, master):
+
+    ret = {}
+
+    for k in to_be_shrunk:
+        if k in master:
+            ret[k] = to_be_shrunk[k]
+
+    return ret
+
 if __name__ == "__main__":
 
-    print(get_list_from_string("a b c d e f"))
-    print(get_n_grams(get_list_from_string("a b c d a b"), 2))
-    print(get_bow(get_list_from_string("a a c c e f")))
+    # print(get_list_from_string("a b c d e f"))
+    # print(get_n_grams(get_list_from_string("a b c d a b"), 2))
+    # print(get_bow(get_list_from_string("a a c c e f")))
 
     init_features = {"a":1, "b":2}
     all_features = {"c":5}
 
-    expand_features(init_features, all_features)
+    fill_feature_dict(init_features, all_features)
+    print(all_features)
     print(init_features)
+
+    print(shrink_dict(init_features, all_features))
