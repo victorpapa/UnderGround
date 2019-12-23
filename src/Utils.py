@@ -1,5 +1,6 @@
 import csv
 import nltk
+import math
 
 # TODO input: tuple: (days, hours, minutes, seconds)
 #      return true if tuple is at least "days" days long
@@ -59,7 +60,7 @@ def get_list_from_string(post):
 
     return ret
 
-# input: list of tokens
+# input: post as a list of tokens
 # stems every word in post and returns a list containing all stemmed words
 def stem_post(post):
     porter_stemmer = nltk.stem.PorterStemmer()
@@ -72,9 +73,9 @@ def stem_post(post):
     return ret
 
 # input: list of tokens
-# output: list containing all n-grams
+# output: dictionary containing all n-grams and the occurences
 def get_n_grams(post, n):
-    ret = []
+    ret = {}
 
     index = 0
     n_gram = ()
@@ -85,14 +86,19 @@ def get_n_grams(post, n):
         
         if index == n:
             index -= 1
-            ret += [n_gram]
+
+            if n_gram in ret:
+                ret[n_gram] = ret[n_gram] + 1
+            else:
+                ret[n_gram] = 1
+
             n_gram = n_gram[1:]
 
     return ret
 
 # input: post as a list of tokens
 # returns a dictionary mapping each word to the number of occurences
-def get_bow_freq(post):
+def get_bow(post):
     ret = {}
 
     for w in post:
@@ -103,19 +109,75 @@ def get_bow_freq(post):
 
     return ret
 
-# input: post as a list of tokens
-# returns a dictionary mapping each word to 1, if the word appears in the post, or 0 otherwise
-def get_bow_pres(post):
+# converts a frequency feature vector to a presence feature vector
+def freq_to_pres(features):
     ret = {}
 
-    for w in post:
-        ret[w] = 1
+    for f in features:
+        ret[f] = 1
+
+    return ret
+
+# returns the distance between 2 n-dimensional vectors
+def get_dist(vec1, vec2):
+    ret = 0
+
+    assert(len(vec1) == len(vec2))
+
+    for i in range(len(vec1)):
+        d = vec2[i] - vec1[i]
+        ret += d * d
+
+    return math.sqrt(ret)
+
+# input: a target vector, and a list of centres
+# output: index of the knn of target
+def get_knn(target, centres):
+    min_dist = -1
+    
+    for i in range(len(centres)):
+        c = centres[i]
+        dist = get_dist(target, c)
+        if min_dist == -1 or dist < min_dist:
+            min_dist = dist
+            ret = i
+
+    return ret
+
+# input: 2 dictionaries, each mapping a feature to its value
+# output: the init_features will also contain all entries in all_features, initialised with 0
+def expand_features(init_features, all_features):
+    for f in all_features:
+        if f in init_features:
+            continue
+
+        init_features[f] = 0
+
+# appends missing elements from to_concat to total
+def concat_features(total, to_concat):
+    for f in to_concat:
+        if f in total:
+            continue
+
+        total += [f]
+
+# returns the kets of a dictionary as a lsit
+def get_dict_keys(dict):
+    ret = []
+
+    for f in dict:
+        ret += [f]
 
     return ret
 
 if __name__ == "__main__":
 
     print(get_list_from_string("a b c d e f"))
-    print(get_n_grams(get_list_from_string("a b c d e f"), 2))
-    print(get_bow_freq(get_list_from_string("a a c c e f")))
-    print(get_bow_pres(get_list_from_string("a a c c e f")))
+    print(get_n_grams(get_list_from_string("a b c d a b"), 2))
+    print(get_bow(get_list_from_string("a a c c e f")))
+
+    init_features = {"a":1, "b":2}
+    all_features = {"c":5}
+
+    expand_features(init_features, all_features)
+    print(init_features)
