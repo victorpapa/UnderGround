@@ -197,6 +197,7 @@ def shrink_dict(to_be_shrunk, master):
 
     return ret
 
+
 if __name__ == "__main__":
 
     # print(get_list_from_string("a b c d e f"))

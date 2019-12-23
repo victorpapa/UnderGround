@@ -1,7 +1,7 @@
 from QueryData import Data_fetcher
 from Post import Post
 from Member import Member
-from Utils import get_edit_distance, create_edge_table_csv
+from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts
 import os
 import csv
 
@@ -52,6 +52,37 @@ def get_active_users(names_path):
             df.add_member(m)
 
     return df.get_active_users()
+
+# returns the dictionary of features for all the posts written by MemberID
+# df is a reference to a data_fetcher object
+# feature is a String, which is the type of feature we want to analyse
+# n is for n-grams
+# presence is for whether we want feeature presence or not
+def get_features_dict(df, MemberID, feature, n = 1, presence = False):
+
+    ret = {}
+
+    posts = df.get_posts_written_by(MemberID)
+
+    for p in posts:
+
+        text = p.Content
+
+        if feature == "bow":
+            feat_dict = get_bow(text)
+        elif feature == "n_grams":
+            if n == 1: 
+                print("Did you forget to set n when querying n_grams?")
+            feat_dict = get_n_grams(text, n)
+        else:
+            print("Feature type " + feature + " not implemented.")
+
+        if presence == True:
+            feat_dict = freq_to_pres(feat_dict)
+
+        concat_feature_dicts(ret, feat_dict)
+
+    return ret
 
 if __name__ == "__main__":
 
