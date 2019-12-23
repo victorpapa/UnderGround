@@ -40,6 +40,12 @@ def get_edit_distance(username1, username2):
 
     return dp[l1][l2]
 
+def create_edge_table_csv(csv_file, to_write):
+    csv_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    csv_writer.writerow(["Source", "Target", "Weight"])
+    for w in to_write:
+        csv_writer.writerow([w[0], w[1], w[2]])
+
 
 if __name__ == "__main__":
 
