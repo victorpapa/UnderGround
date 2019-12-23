@@ -1,3 +1,6 @@
+import csv
+import nltk
+
 # TODO input: tuple: (days, hours, minutes, seconds)
 #      return true if tuple is at least "days" days long
 #      return false otherwise
@@ -46,10 +49,48 @@ def create_edge_table_csv(csv_file, to_write):
     for w in to_write:
         csv_writer.writerow([w[0], w[1], w[2]])
 
+# input: post as a String
+# returns the list of words that make up the post
+def get_list_from_string(post):
+    ret = []
+
+    for w in post.split():
+        ret += [w]
+
+    return ret
+
+# input: list of tokens
+# stems every word in post and returns a list containing all stemmed words
+def stem_post(post):
+    porter_stemmer = nltk.stem.PorterStemmer()
+    ret = []
+
+    for w in post:
+        w = porter_stemmer.stem(w)
+        ret += [w]
+    
+    return ret
+
+# input: list of tokens
+# output: list containing all n-grams
+def get_n_grams(post, n):
+    ret = []
+
+    index = 0
+    n_gram = ()
+    for w in post:
+        index += 1
+        w = w.strip()
+        n_gram = n_gram + (w,)
+        
+        if index == n:
+            index -= 1
+            ret += [n_gram]
+            n_gram = n_gram[1:]
+
+    return ret
 
 if __name__ == "__main__":
 
-    a = "abc"
-    b = "abcabc"
-
-    print(get_edit_distance(a, b))
+    print(get_list_from_string("a b c d e f"))
+    print(get_n_grams(get_list_from_string("a b c d e f"), 2))

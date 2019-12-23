@@ -1,7 +1,7 @@
 from QueryData import Data_fetcher
 from Post import Post
 from Member import Member
-from Utils import get_edit_distance
+from Utils import get_edit_distance, create_edge_table_csv
 import os
 import csv
 
@@ -62,4 +62,3 @@ if __name__ == "__main__":
     csv_file = open("..\\res\\similar_usernames.csv", "w")
     create_edge_table_csv(csv_file, similar_usernames)
     
-
