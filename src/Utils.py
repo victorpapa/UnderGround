@@ -197,6 +197,17 @@ def shrink_dict(to_be_shrunk, master):
 
     return ret
 
+# converts a list of 3-tuples to a dictionary
+def tuples_to_dictionary(tuples):
+    ret = {}
+
+    for t in tuples:
+        if t[0] not in ret:
+            ret[t[0]] = [(t[1], t[2])]
+        else:
+            ret[t[0]] += [(t[1], t[2])]
+
+    return ret
 
 if __name__ == "__main__":
 

@@ -1,7 +1,7 @@
 from QueryData import Data_fetcher
 from Post import Post
 from Member import Member
-from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts
+from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts, shrink_dict, fill_feat_dict, tuples_to_dict
 import os
 import csv
 
@@ -29,16 +29,22 @@ def get_similar_usernames(active_users):
         for j in range(i+1, len(active_users)):
             u1 = active_users[i].Username
             u2 = active_users[j].Username
+
+            id1 = active_users[i].IdMember
+            id2 = active_users[j].IdMember
+
             dist = get_edit_distance(u1, u2)
 
             if dist <= 2:
-                similar_usernames += [(u1, u2, dist)]
+                # TODO make sure this gets fixed when needed
+                # similar_usernames += [(u1, u2, dist)]
+                similar_usernames += [(id1, id2, dist)]
 
     similar_usernames = revert_weights(similar_usernames)
 
     return similar_usernames
 
-def get_active_users(names_path):
+def create_memebers_df(names_path):
     f = open(names_path, "r", encoding="utf8")
     df = Data_fetcher()
     ID = 0
@@ -51,7 +57,7 @@ def get_active_users(names_path):
             ID += 1
             df.add_member(m)
 
-    return df.get_active_users()
+    return df
 
 # returns the dictionary of features for all the posts written by MemberID
 # df is a reference to a data_fetcher object
@@ -87,9 +93,15 @@ def get_features_dict(df, MemberID, feature, n = 1, presence = False):
 if __name__ == "__main__":
 
     names_path = os.path.join(os.getcwd(), "..\\res\\First_Names.txt")
-    active_users = get_active_users(names_path)
-    similar_usernames = get_similar_usernames(active_users)
+    df = create_memebers_df(names_path)
+    active_users = df.get_active_users()
+    similar_usernames_tuples = get_similar_usernames(active_users)
+    similar_usernames_dict = tuples_to_dict(similar_usernames_tuples)
+
+    centroids = []
+    features = {}
+    feat_type = "bow"
 
     csv_file = open("..\\res\\similar_usernames.csv", "w")
-    create_edge_table_csv(csv_file, similar_usernames)
+    create_edge_table_csv(csv_file, similar_usernames_tuples)
     
