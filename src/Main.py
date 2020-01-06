@@ -1,7 +1,7 @@
 from QueryData import Data_fetcher
 from Post import Post
 from Member import Member
-from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts, shrink_dict, fill_feat_dict, tuples_to_dict
+from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts, shrink_dict, fill_feature_dict, tuples_to_dict
 import os
 import csv
 
@@ -21,7 +21,10 @@ def revert_weights(similar_usernames):
 
     return similar_usernames
 
-def get_similar_usernames(active_users):
+# given a list of Member objects, this method will return triplets (a, b, x), where x is <= max_dist,
+# where a and b are usernames (Strings), and x is the reversed edit distance between them
+# see the function reverse_weights() for the definition of reversed edit distance
+def get_similar_usernames(active_users, max_dist):
 
     similar_usernames = []
 
@@ -35,7 +38,7 @@ def get_similar_usernames(active_users):
 
             dist = get_edit_distance(u1, u2)
 
-            if dist <= 2:
+            if dist <= max_dist:
                 # TODO make sure this gets fixed when needed
                 # similar_usernames += [(u1, u2, dist)]
                 similar_usernames += [(id1, id2, dist)]
@@ -44,6 +47,7 @@ def get_similar_usernames(active_users):
 
     return similar_usernames
 
+# this method creates a Data_fetcher object containing all the members in names_path
 def create_memebers_df(names_path):
     f = open(names_path, "r", encoding="utf8")
     df = Data_fetcher()
@@ -61,10 +65,12 @@ def create_memebers_df(names_path):
 
 # returns the dictionary of features for all the posts written by MemberID
 # df is a reference to a data_fetcher object
-# feature is a String, which is the type of feature we want to analyse
+# feature is a String, which is the type of feature we want to analyse (BoW, N-grams etc.)
 # n is for n-grams
 # presence is for whether we want feeature presence or not
-def get_features_dict(df, MemberID, feature, n = 1, presence = False):
+# TODO potentially make a function that returns a similar mapping, but which also maps each post to the vectors
+# this function aggregates all the posts and returns the overall feature vector
+def get_features_dict_written_by(MemberID, df, feature, n = 1, presence = False):
 
     ret = {}
 
@@ -83,10 +89,10 @@ def get_features_dict(df, MemberID, feature, n = 1, presence = False):
         else:
             print("Feature type " + feature + " not implemented.")
 
-        if presence == True:
-            feat_dict = freq_to_pres(feat_dict)
-
         concat_feature_dicts(ret, feat_dict)
+
+    if presence == True:
+        ret = freq_to_pres(ret)
 
     return ret
 
@@ -95,7 +101,7 @@ if __name__ == "__main__":
     names_path = os.path.join(os.getcwd(), "..\\res\\First_Names.txt")
     df = create_memebers_df(names_path)
     active_users = df.get_active_users()
-    similar_usernames_tuples = get_similar_usernames(active_users)
+    similar_usernames_tuples = get_similar_usernames(active_users, 2)
     similar_usernames_dict = tuples_to_dict(similar_usernames_tuples)
 
     centroids = []
