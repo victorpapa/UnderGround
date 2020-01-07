@@ -160,21 +160,11 @@ def fill_feature_dict(to_be_filled, total):
 
 # returns the keys of a dictionary as a lsit
 def get_dict_keys(dict):
-    ret = []
-
-    for f in dict:
-        ret += [f]
-
-    return ret
+    return list(dict.keys())
 
 # returns the values of a dictionary as a lsit
 def get_dict_values(dict):
-    ret = []
-
-    for f in dict:
-        ret += dict[f]
-
-    return ret
+    return list(dict.values())
 
 # normalises the feature vector
 def normalise_feature_vector(features):
@@ -208,6 +198,33 @@ def tuples_to_dict(tuples):
             ret[t[0]] += [(t[1], t[2])]
 
     return ret
+
+# performs a dfs
+def visit(node, edges, visited):
+
+    visited[node] = True
+
+    for n in edges[node]:
+        if not visited[n]:
+            visit(n, edges, visited)
+
+# given a dictionary representing a graph, obtain the number of conex components
+# TODO test this method
+def get_conex_components_count(edges):
+
+    total = 0
+    visited = {}
+    for u in edges:
+        visited[u] = False
+
+    for u in edges:
+        if not visited[u]:
+            visit(u)
+            total += 1
+
+    return total
+            
+
 
 if __name__ == "__main__":
 
