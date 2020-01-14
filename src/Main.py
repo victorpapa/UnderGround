@@ -1,4 +1,4 @@
-from QueryData import Data_fetcher
+from QueryData import Data
 from Post import Post
 from Member import Member
 from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count
@@ -49,10 +49,10 @@ def get_similar_usernames(active_users, max_dist):
 
     return similar_usernames
 
-# this method creates a Data_fetcher object containing all the members in names_path
+# this method creates a Data object containing all the members in names_path
 def create_members_df(names_path):
     f = open(names_path, "r", encoding="utf8")
-    df = Data_fetcher()
+    df = Data()
     ID = 0
 
     for l in f:

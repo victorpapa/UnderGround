@@ -1,4 +1,4 @@
-class Data_fetcher:
+class Data:
 
     def __init__(self): 
         self.members = [] # members will consist of a list of member objects
