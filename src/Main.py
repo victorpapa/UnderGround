@@ -41,7 +41,9 @@ def get_similar_usernames(active_users, max_dist):
             if dist <= max_dist:
                 # TODO make sure this gets fixed when needed
                 similar_usernames += [(u1, u2, dist)]
+                similar_usernames += [(u2, u1, dist)]
                 # similar_usernames += [(id1, id2, dist)]
+                # similar_usernames += [(id2, id1, dist)]
 
     similar_usernames = revert_weights(similar_usernames)
 
@@ -61,11 +63,11 @@ def create_members_df(names_path):
             ID += 1
             df.add_member(m)
 
-    print(ID)
+    print("The total number of members is " + str(ID) + ".")
 
     return df
 
-# aggregates all the vectors representing the posts written by MemberID, and returns
+# aggregates all the vectors representing the posts written by IdMember, and returns
 # the centre of mass of those vectors (if presence is False)
 # df is a reference to a data_fetcher object
 # feature is a String, which is the type of feature we want to analyse (BoW, N-grams etc.)
@@ -73,11 +75,11 @@ def create_members_df(names_path):
 # presence is for whether we want feeature presence or not
 # TODO potentially make a function that returns a similar mapping, but which also maps each post to the vectors
 # this function aggregates all the posts and returns the overall feature vector
-def get_features_dict_written_by(MemberID, df, feature, presence, n):
+def get_features_dict_written_by(IdMember, df, feature, presence, n):
 
     ret = {}
 
-    posts = df.get_posts_written_by(MemberID)
+    posts = df.get_posts_written_by(IdMember)
 
     for p in posts:
 
@@ -144,80 +146,91 @@ if __name__ == "__main__":
     csv_file = open("..\\res\\similar_usernames.csv", "w")
     create_edge_table_csv(csv_file, similar_usernames_tuples)
 
-
-    # Obtain the vector for each user
-
-    user_vectors = {}
-    use_presence = False
-
-    for user in active_users:
-        d = get_features_dict_written_by(user.MemberID, 
-                                         df = df, 
-                                         feature = feat_type, 
-                                         presence = use_presence,
-                                         n = n)
-
-        user_vectors[user] = d
-
-    # Aggregate all the keys to get the dimensions
-    aggregated_keys = []
-
-    for user in user_vectors:
-        vector = user_vectors[user]
-        
-        for k in vector:
-            aggregated_keys += [k]
-
-    # Fill all the vectors to contain all the dimensions
-    for user in user_vectors:
-        print(user_vectors[user])
-        # And also normalise them if presence isn't used, distribution is more important
-        if not use_presence:
-            normalise_feature_vector(user_vectors[user])
-
-        fill_feature_dict(user_vectors[user], aggregated_keys)
-        print(user_vectors[user])
-
-    # iterate through users, and assign each of their posts to one of the other users
-    # the most chosen user will be suspected to be the same user as the one we are analysing
-
-    suspects = {}
-
-    for user in user_vectors:
-        posts = df.get_posts_written_by(user)
-        labels = []
-
-        for p in posts:
-            p_dict = get_features_dict_for_post(post = p, 
-                                                feature = feat_type, 
-                                                presence = use_presence,
-                                                n = n)
-
-            fill_feature_dict(p_dict, aggregated_keys)
-            
-            min_dist = -1
-            for other in user_vectors:
-                if other == user:
-                    continue
-
-                dist = get_dist(p_dict, user_vectors[other])
-
-                if min_dist == -1 or dist < min_dist:
-                    min_dist = dist
-                    user_label = other
-
-            labels[user_label] += 1
+    # Obtain the clusters
+    # TODO test this
     
-        maximum = -1
-        for user_label in labels:
-            if maximum == -1 or labels[user_label] > maximum:
-                maximum = labels[user_label]
-                closest_user = user_label
+    clusters = []
 
-        suspects[user] = closest_user
+    for user in similar_usernames_dict:
+        cluster = [user]
+        for (n, _) in similar_usernames_dict(user):
+            cluster += [n]
 
-    print(suspects)
-    cc = get_conex_components_count(suspects)
+    for cluster in clusters:
+
+        # Obtain the vector for each user
+
+        user_vectors = {}
+        use_presence = False
+
+        for user in cluster:
+            d = get_features_dict_written_by(user.IdMember, 
+                                            df = df, 
+                                            feature = feat_type, 
+                                            presence = use_presence,
+                                            n = n)
+
+            user_vectors[user] = d
+
+        # Aggregate all the keys to get the dimensions
+        aggregated_keys = []
+
+        for user in user_vectors:
+            vector = user_vectors[user]
+            
+            for k in vector:
+                aggregated_keys += [k]
+
+        # Fill all the vectors to contain all the dimensions
+        for user in user_vectors:
+            print(user_vectors[user])
+            # And also normalise them if presence isn't used, distribution is more important
+            if not use_presence:
+                normalise_feature_vector(user_vectors[user])
+
+            fill_feature_dict(user_vectors[user], aggregated_keys)
+            print(user_vectors[user])
+
+        # iterate through users, and assign each of their posts to one of the other users
+        # the most chosen user will be suspected to be the same user as the one we are analysing
+
+        suspects = {}
+
+        for user in user_vectors:
+            posts = df.get_posts_written_by(user)
+            labels = []
+
+            for p in posts:
+                p_dict = get_features_dict_for_post(post = p, 
+                                                    feature = feat_type, 
+                                                    presence = use_presence,
+                                                    n = n)
+
+                fill_feature_dict(p_dict, aggregated_keys)
+                
+                min_dist = -1
+                for other in user_vectors:
+                    if other == user:
+                        continue
+
+                    dist = get_dist(p_dict, user_vectors[other])
+
+                    if min_dist == -1 or dist < min_dist:
+                        min_dist = dist
+                        user_label = other
+
+                labels[user_label] += 1
+        
+            maximum = -1
+            for user_label in labels:
+                if maximum == -1 or labels[user_label] > maximum:
+                    maximum = labels[user_label]
+                    closest_user = user_label
+
+            suspects[user] = closest_user
+
+        print(suspects)
+        cc = get_conex_components_count(suspects)
 
 
 

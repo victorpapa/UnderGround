@@ -3,14 +3,28 @@ import nltk
 import math
 
 # TODO input: tuple: (days, hours, minutes, seconds)
-#      return true if tuple is at least "days" days long
+#      return true if tuple is at least (including) "days" days long
 #      return false otherwise
-def is_longer_than(self, tuple, days):
-    return False
+def is_longer_than(time, days):
+    d = time[0]
+    h = time[1]
+    m = time[2]
+    s = time[3]
+
+    if d > days:
+        return True
+
+    if d < days:
+        return False
+
+    if h == 0 and m == 0 and s == 0:
+        return True
+
+    return True
 
 # TODO return the distance between date1 and date2, in a tuple: (days, hours, minutes, seconds)
-def get_date_distance(date1, date2):
-    return 0
+# def get_date_distance(date1, date2):
+#     return 0
 
 # returns the Levenshtein distance between username1 and username2
 def get_edit_distance(username1, username2):
@@ -44,6 +58,8 @@ def get_edit_distance(username1, username2):
 
     return dp[l1][l2]
 
+# Creates a csv file containing an edge table for building a graph
+# is not tested
 def create_edge_table_csv(csv_file, to_write):
     csv_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     csv_writer.writerow(["Source", "Target", "Weight"])
@@ -52,7 +68,7 @@ def create_edge_table_csv(csv_file, to_write):
 
 # input: post as a String
 # returns the list of words that make up the post
-def get_list_from_string(post):
+def get_tokens_from(post):
     ret = []
 
     for w in post.split():
@@ -122,7 +138,9 @@ def freq_to_pres(features):
 def get_dist(vec1, vec2):
     ret = 0
 
-    assert(len(vec1) == len(vec2))
+    if len(vec1) != len(vec2):
+        print("Vector dimensions not matching! Exiting ...")
+        exit()
 
     for i in range(len(vec1)):
         d = vec2[i] - vec1[i]
@@ -131,7 +149,7 @@ def get_dist(vec1, vec2):
     return math.sqrt(ret)
 
 # input: a target vector, and a list of centres
-# output: index of the knn of target
+# output: knn of target
 def get_knn(target, centres):
     min_dist = -1
     
@@ -142,7 +160,7 @@ def get_knn(target, centres):
             min_dist = dist
             ret = i
 
-    return ret
+    return centres[ret]
 
 # appends missing elements from to_concat to total
 def concat_feature_dicts(total, to_concat):
@@ -171,23 +189,24 @@ def normalise_feature_vector(features):
     total = 0
 
     for x in features:
-        total += x
+        total += features[x]
 
-    for i in range(len(features)):
+    for i in features:
         features[i] = features[i] / total
 
 # returns a dict that only contains the entries in to_be_shrunk whose keys are present in master
-def shrink_dict(to_be_shrunk, master):
+def shrink_dict(to_be_shrunk, total):
 
     ret = {}
 
     for k in to_be_shrunk:
-        if k in master:
+        if k in total:
             ret[k] = to_be_shrunk[k]
 
     return ret
 
 # converts a list of 3-tuples to a dictionary
+# is not tested
 def tuples_to_dict(tuples):
     ret = {}
 
@@ -209,7 +228,6 @@ def visit(node, edges, visited):
             visit(n, edges, visited)
 
 # given a dictionary representing a graph, obtain the number of conex components
-# TODO test this method
 def get_conex_components_count(edges):
 
     total = 0
@@ -219,7 +237,7 @@ def get_conex_components_count(edges):
 
     for u in edges:
         if not visited[u]:
-            visit(u)
+            visit(u, edges, visited)
             total += 1
 
     return total
