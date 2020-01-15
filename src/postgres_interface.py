@@ -40,9 +40,13 @@ class postgres_interface:
     def run_command(self, cmd, db_name = "postgres"):
         print("Running " + cmd + " ...")
         output = subprocess.check_output(["psql", "--username=postgres", "--dbname=" + db_name, "-c", cmd])
+
+        # the output returned by check_output is of type "bytes", which needs to be decoded
+        output = output.decode("utf-8")
+
         print(output)
 
-        return str(output)
+        return output
 
     def get_list_of_resources(self):
         psql_dumps = []
@@ -58,18 +62,29 @@ if __name__ == "__main__":
     pi.connect()
 
     # for res in pi.get_list_of_resources():
-    pi.init_database_from_resource("crimebb-freehacks-2020-01-02")
+    # pi.init_database_from_resource("crimebb-freehacks-2020-01-02")
 
     try:
         command = "SELECT \"Username\" FROM \"Member\" LIMIT 4000;"
         db_name = "crimebb-freehacks-2020-01-02"
         output = pi.run_command(command, db_name)
+        output = output.split()
+        aux = []
+        # iterate from 2, to len - 2, because the first two lines are the title and a delimiting line ------
+        # the last item specifies the number of entries, e.g. 1064 rows
+        for i in range(2, len(output) - 1):
+            name = output[i]
+            if name != "NONE":
+                aux += [name]
+
+        output = aux
     finally:
         pi.disconnect()
 
     members_file = os.path.join(os.getcwd(), "..\\res\\Members.txt")
-    g = open(members_file, "w+")
-    g.write(output)
+    g = open(members_file, "w+", encoding="utf-8")
+    for name in output:
+        g.write(name + "\n")
     g.close()
 
     
