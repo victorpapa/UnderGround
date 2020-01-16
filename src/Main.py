@@ -51,7 +51,7 @@ def get_similar_usernames(active_users, max_dist):
 
 # this method creates a Data object containing all the members in names_path
 def create_members_df(names_path):
-    f = open(names_path, "r", encoding="utf8")
+    f = open(names_path, "r", encoding="utf-8")
     df = Data()
     ID = 0
 
@@ -132,7 +132,7 @@ if __name__ == "__main__":
 
     # Create a csv containing an edge table for all the users described in names_path
 
-    names_path = os.path.join(os.getcwd(), "..\\res\\First_Names.txt")
+    names_path = os.path.join(os.getcwd(), "..\\res\\Members.txt")
     df = create_members_df(names_path)
     active_users = df.get_active_users() # list of Member objects
     similar_usernames_tuples = get_similar_usernames(active_users, 2)
@@ -143,8 +143,11 @@ if __name__ == "__main__":
     feat_type = "bow"
     n = 1
 
-    csv_file = open("..\\res\\similar_usernames.csv", "w")
+    csv_file = open("..\\res\\similar_usernames.csv", "w", encoding = "utf-8")
     create_edge_table_csv(csv_file, similar_usernames_tuples)
+    csv_file.close()
+
+    exit()
 
     # Obtain the clusters
     # TODO test this

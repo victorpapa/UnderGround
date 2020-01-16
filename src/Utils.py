@@ -60,10 +60,11 @@ def get_edit_distance(username1, username2):
 
 # Creates a csv file containing an edge table for building a graph
 # is not tested
-def create_edge_table_csv(csv_file, to_write):
-    csv_writer = csv.writer(csv_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+def create_edge_table_csv(csv_file_handler, to_write):
+    csv_writer = csv.writer(csv_file_handler, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     csv_writer.writerow(["Source", "Target", "Weight"])
     for w in to_write:
+        print(w)
         csv_writer.writerow([w[0], w[1], w[2]])
 
 # input: post as a String
