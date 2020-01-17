@@ -29,12 +29,13 @@ class Member:
         self.Database         = Database # I introduced this field to remember the origin of the user as the name of the db
 
     # returns a tuple (days, hours, minutes, seconds) representing the elapsed time 
-    # since the user last logged in
-    def get_last_active_dist(self):
-        return (0, 0, 0, 0) # TODO
+    # since the user last logged in. The referece time is not the present, but the 
+    # time and date of the last recorded log in on the same website that we have in the database.
+    def get_time_since_active(self):
+        
 
     def is_active(self):
-        return True # TODO should involve self.get_active_time()
+        return True
 
     # returns the age of this account as (days, hours, minutes, seconds)
     def get_age(self):

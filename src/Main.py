@@ -1,7 +1,7 @@
 from QueryData import Data
 from Post import Post
 from Member import Member
-from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, create_nodes_table_csv
+from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, create_nodes_table_csv, extract_date_from, get_00_time_from
 import os
 import csv
 
@@ -47,7 +47,9 @@ def get_similar_usernames(active_users, max_dist):
             if dist <= max_dist:
                 # TODO make sure this gets fixed when needed
                 # similar_usernames += [(u1, u2, dist)]
+                # similar_usernames += [(u2, u1, dist)]
                 similar_usernames += [(id1, id2, dist)]
+                similar_usernames += [(id2, id1, dist)]
                     
     similar_usernames = revert_weights(similar_usernames)
 
@@ -65,6 +67,9 @@ def create_members_df(names_path):
         IdMember = l[0]
         Username = l[1]
         Database = l[2]
+        LastVisitDate = extract_date_from(l[3])
+        LastVisitTime = get_00_time_from(l[4])
+        LastVisit = (LastVisitDate, LastVisitTime)
         
         # TODO maybe use the IdMember, will it be useful for something? If not, just keep using the index here (total)
         m = Member(total, Username=Username, Database=Database)
@@ -72,8 +77,8 @@ def create_members_df(names_path):
 
         total += 1
 
-        # if total == 4000:
-        #     break
+        if total == 40000:
+            break
             
 
     print("The total number of members is " + str(total) + ".")
@@ -143,7 +148,7 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
 
 if __name__ == "__main__":
 
-    # Create a csv containing an edge table for all the users described in names_path
+    # Create a csv containing a node table and an edge table for all the users described in names_path
 
     names_path = os.path.join(os.getcwd(), "..\\res\\Members.txt")
     df = create_members_df(names_path)
@@ -163,6 +168,9 @@ if __name__ == "__main__":
     edges_csv_file.close()
     nodes_csv_file.close()
 
+    conex_components_count = get_conex_components_count(similar_usernames_dict)
+    print("The number of conex components is " + str(conex_components_count) + ".")
+
     exit()
 
     # Obtain the clusters
@@ -172,7 +180,7 @@ if __name__ == "__main__":
 
     for user in similar_usernames_dict:
         cluster = [user]
-        for (n, _) in similar_usernames_dict(user):
+        for (n, _) in similar_usernames_dict[user]:
             cluster += [n]
 
     for cluster in clusters:

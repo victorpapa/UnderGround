@@ -1,10 +1,11 @@
 import csv
 import nltk
 import math
+import re
 
-# TODO input: tuple: (days, hours, minutes, seconds)
-#      return true if tuple is at least (including) "days" days long
-#      return false otherwise
+# input: tuple: (days, hours, minutes, seconds)
+# return true if tuple is at least (including) "days" days long
+# return false otherwise
 def is_longer_than(time, days):
     d = time[0]
     h = time[1]
@@ -22,9 +23,118 @@ def is_longer_than(time, days):
 
     return True
 
-# TODO return the distance between date1 and date2, in a tuple: (days, hours, minutes, seconds)
-# def get_date_distance(date1, date2):
-#     return 0
+# returns True if date1 >= date2, both dates given as tuples: (days, hours, minutes, seconds)
+def is_later_than(date1, date2):
+    if date1[0] > date2[0]:
+        return True
+    
+    if date1[0] < date2[0]:
+        return False
+
+    if date1[1] > date2[1]:
+        return True
+
+    if date1[1] < date2[1]:
+        return False
+    
+    if date1[2] > date2[2]:
+        return True
+    
+    if date1[2] < date2[2]:
+        return False
+
+    if date1[3] > date2[3]:
+        return True
+
+    if date1[3] < date2[3]:
+        return False
+
+    return False
+
+# return the distance between date1 and date2, in a tuple: (days, hours, minutes, seconds)
+# if date1 <= date2, the method will return (0, 0, 0, 0)
+def get_date_distance(date1, date2):
+    d = 0
+    h = 0
+    m = 0
+    s = 0
+
+    if not is_later_than(date1, date2):
+        return (0, 0, 0, 0)
+
+    s = date1[3] - date2[3]
+    if s < 0:
+        s += 60
+        m -= 1
+
+    m += date1[2] - date2[2]
+    if m < 0:
+        m += 60
+        h -= 1
+
+    h += date1[1] - date2[1]
+    if h < 0:
+        h += 24
+        d -= 1
+
+    d += date1[0] - date2[0]
+
+    return (d, h, m, s)
+
+# returns True if the string s represents an integer number
+def is_int(s):
+    try: 
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+# returns the date present in the string s
+def extract_date_from(s):
+
+    res = s
+
+    # db_name example: crimeBB_2018-07-03_mpgh
+    s = re.split("[_-]", s)
+    for i in range(len(s)):
+        if is_int(s[i]):
+            return (int(s[i]), int(s[i+1]), int(s[i+2]))
+
+    print("Couldn't extract date from " + res + ".")
+    exit()
+
+# returns the number of days that should be removed from the date (due to time zone)
+# and also returns the time present in the string s
+def get_00_time_from(s):
+    # time example 1: 07:38:00+00
+    # time example 2: 17:11:55.376518+01
+    if "+" in s:
+        s = s.split("+")
+        time_zone = int(s[1])
+    elif "-" in s:
+        s = s.split("-")
+        time_zone = -int(s[1])
+    else:
+        print("Invalid time format: " + s + ".")
+        exit()
+
+    (h, m, s) = s[0].split(":")
+    h = int(h)
+    m = int(m)
+    s = int(float(s)) # because of cases such as example 2, where millisecondss are also present
+
+    h -= time_zone
+
+    if h > 24:
+        d = 1
+        h -= 24
+    elif h < 0:
+        d = -1
+        h += 24
+    else:
+        d = 0
+    
+    return (d, (h, m, s))
 
 # returns the Levenshtein distance between username1 and username2
 def get_edit_distance(username1, username2):
@@ -228,25 +338,24 @@ def tuples_to_dict(tuples):
 
     return ret
 
+# edges is an edge table for a weighted graph, e.g. source -> (target, weight)
 # performs a dfs
 def visit(node, edges, visited):
 
     visited[node] = True
 
-    for n in edges[node]:
+    for (n, _) in edges[node]:
         if not visited[n]:
             visit(n, edges, visited)
 
 # given a dictionary representing an undirected graph, obtain the number of conex components
+# edges is an edge table for a weighted graph, e.g. source -> (target, weight)
 def get_conex_components_count(edges):
 
     total = 0
     visited = {}
     for u in edges:
         visited[u] = False
-
-        for n in edges[u]:
-            visited[n] = False
 
     for u in edges:
         if not visited[u]:

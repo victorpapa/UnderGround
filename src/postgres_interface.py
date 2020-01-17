@@ -75,7 +75,7 @@ if __name__ == "__main__":
 
     for db_name in db_names:
         print(db_name)
-        command = "SELECT \"IdMember\", \"Username\"  FROM \"Member\" LIMIT 50000;"
+        command = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC LIMIT 5000;"
 
         try:
             output = pi.run_command(command, db_name)
@@ -92,9 +92,10 @@ if __name__ == "__main__":
             row = output[i].split(" | ")
             ID   = row[0].strip()
             name = row[1].strip()
+            last_visit = row[2].strip()
             if name != "NONE":
                 if (ID, name, db_name) not in accounts:
-                    aux += [(ID, name, db_name)]
+                    aux += [(ID, name, db_name, last_visit)]
 
         accounts += aux
 
@@ -106,8 +107,15 @@ if __name__ == "__main__":
     g = open(members_file, "w+", encoding="utf-8")
 
     print("Writing members data...")
-    for (ID, username, db_name) in accounts:
-        g.write(ID + " " + username + " " + db_name + "\n")
+    for entry in accounts:
+        to_write = ""
+        l = len(entry) - 1 
+        for i in range(l):
+            to_write += entry[i] + " "
+        to_write += entry[l] + "\n"
+
+        g.write(to_write)
+        
     print("Done!")
     g.close()
 
