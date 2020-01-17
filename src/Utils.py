@@ -62,10 +62,19 @@ def get_edit_distance(username1, username2):
 # is not tested
 def create_edge_table_csv(csv_file_handler, to_write):
     csv_writer = csv.writer(csv_file_handler, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    csv_writer.writerow(["Source", "Target", "Weight"])
+    csv_writer.writerow(["Source", "Target", "Weight", "Type"])
     for w in to_write:
-        print(w)
-        csv_writer.writerow([w[0], w[1], w[2]])
+        csv_writer.writerow([w[0], w[1], w[2], "Undirected"])
+
+# Creates a csv file containing a nodes table for building a graph
+# is not tested
+def create_nodes_table_csv(csv_file_handler, to_write):
+    csv_writer = csv.writer(csv_file_handler, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    csv_writer.writerow(["Id", "Label"])
+    total = 0
+    for w in to_write:
+        csv_writer.writerow([str(total), w])
+        total += 1
 
 # input: post as a String
 # returns the list of words that make up the post
@@ -228,13 +237,16 @@ def visit(node, edges, visited):
         if not visited[n]:
             visit(n, edges, visited)
 
-# given a dictionary representing a graph, obtain the number of conex components
+# given a dictionary representing an undirected graph, obtain the number of conex components
 def get_conex_components_count(edges):
 
     total = 0
     visited = {}
     for u in edges:
         visited[u] = False
+
+        for n in edges[u]:
+            visited[n] = False
 
     for u in edges:
         if not visited[u]:

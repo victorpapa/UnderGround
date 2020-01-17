@@ -60,41 +60,55 @@ class postgres_interface:
 
         return psql_dumps
 
+    def init_dbs(self, db_names):
+        for res in db_names:
+            pi.init_database_from_resource(res, reset)
+
 
 if __name__ == "__main__":
     pi = postgres_interface()
     pi.connect()
     db_names = pi.get_list_of_resources()
-    for res in db_names:
-        pi.init_database_from_resource(res, reset = False)
+    # pi.init_dbs(db_names, reset = False)
 
-    
-    output = []
+    accounts = []
 
     for db_name in db_names:
-        command = "SELECT \"Username\" FROM \"Member\";"
-        # db_name = "crimebb-freehacks-2020-01-02"
+        print(db_name)
+        command = "SELECT \"IdMember\", \"Username\"  FROM \"Member\" LIMIT 50000;"
+
         try:
             output = pi.run_command(command, db_name)
-            output = output.split()
-            aux = []
-            # iterate from 2, to len - 2, because the first two lines are the title and a delimiting line ------
-            # the last item specifies the number of entries, e.g. "1064" and "rows"
-            for i in range(2, len(output) - 2):
-                name = output[i]
-                if name != "NONE":
-                    aux += [name]
-
-            output += aux
         except:
             continue
+
+        output = output.split("\r\n")
+        aux = []
+
+        # iterate from 2, because the first two lines are the title and a delimiting line ------
+        # stop at len(output) - 4, because the last 2 are just empty strings, and the one before contains the number of
+        # rows, e.g. "(1064 rows)"
+        for i in range(2, len(output) - 3):
+            row = output[i].split(" | ")
+            ID   = row[0].strip()
+            name = row[1].strip()
+            if name != "NONE":
+                if (ID, name, db_name) not in accounts:
+                    aux += [(ID, name, db_name)]
+
+        accounts += aux
+
+        
 
     pi.disconnect()
 
     members_file = os.path.join(os.getcwd(), "..\\res\\Members.txt")
     g = open(members_file, "w+", encoding="utf-8")
-    for name in output:
-        g.write(name + "\n")
+
+    print("Writing members data...")
+    for (ID, username, db_name) in accounts:
+        g.write(ID + " " + username + " " + db_name + "\n")
+    print("Done!")
     g.close()
 
     

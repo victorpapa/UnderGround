@@ -1,7 +1,7 @@
 from QueryData import Data
 from Post import Post
 from Member import Member
-from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count
+from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, create_nodes_table_csv
 import os
 import csv
 
@@ -36,15 +36,19 @@ def get_similar_usernames(active_users, max_dist):
             id1 = active_users[i].IdMember
             id2 = active_users[j].IdMember
 
-            dist = get_edit_distance(u1, u2)
+            if max_dist > 0:
+                dist = get_edit_distance(u1, u2)
+            elif max_dist == 0:
+                if u1 == u2:
+                    dist = 0
+                else:
+                    dist = 1
 
             if dist <= max_dist:
                 # TODO make sure this gets fixed when needed
-                similar_usernames += [(u1, u2, dist)]
-                similar_usernames += [(u2, u1, dist)]
-                # similar_usernames += [(id1, id2, dist)]
-                # similar_usernames += [(id2, id1, dist)]
-
+                # similar_usernames += [(u1, u2, dist)]
+                similar_usernames += [(id1, id2, dist)]
+                    
     similar_usernames = revert_weights(similar_usernames)
 
     return similar_usernames
@@ -53,23 +57,32 @@ def get_similar_usernames(active_users, max_dist):
 def create_members_df(names_path):
     f = open(names_path, "r", encoding="utf-8")
     df = Data()
-    ID = 0
+    total = 0
 
     for l in f:
         l = l.split()
-        
-        for w in l:
-            m = Member(Username=w, IdMember=ID)
-            ID += 1
-            df.add_member(m)
 
-    print("The total number of members is " + str(ID) + ".")
+        IdMember = l[0]
+        Username = l[1]
+        Database = l[2]
+        
+        # TODO maybe use the IdMember, will it be useful for something? If not, just keep using the index here (total)
+        m = Member(total, Username=Username, Database=Database)
+        df.add_member(m)
+
+        total += 1
+
+        # if total == 4000:
+        #     break
+            
+
+    print("The total number of members is " + str(total) + ".")
 
     return df
 
 # aggregates all the vectors representing the posts written by IdMember, and returns
 # the centre of mass of those vectors (if presence is False)
-# df is a reference to a data_fetcher object
+# df is a reference to a Data object
 # feature is a String, which is the type of feature we want to analyse (BoW, N-grams etc.)
 # n is for n-grams
 # presence is for whether we want feeature presence or not
@@ -135,7 +148,7 @@ if __name__ == "__main__":
     names_path = os.path.join(os.getcwd(), "..\\res\\Members.txt")
     df = create_members_df(names_path)
     active_users = df.get_active_users() # list of Member objects
-    similar_usernames_tuples = get_similar_usernames(active_users, 2)
+    similar_usernames_tuples = get_similar_usernames(active_users, 0)
     similar_usernames_dict = tuples_to_dict(similar_usernames_tuples)
 
     centroids = []
@@ -143,9 +156,12 @@ if __name__ == "__main__":
     feat_type = "bow"
     n = 1
 
-    csv_file = open("..\\res\\similar_usernames.csv", "w", encoding = "utf-8")
-    create_edge_table_csv(csv_file, similar_usernames_tuples)
-    csv_file.close()
+    edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
+    nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
+    create_edge_table_csv(edges_csv_file, similar_usernames_tuples)
+    create_nodes_table_csv(nodes_csv_file, [member.Username for member in active_users])
+    edges_csv_file.close()
+    nodes_csv_file.close()
 
     exit()
 

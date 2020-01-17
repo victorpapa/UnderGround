@@ -4,7 +4,7 @@ class Member:
                 Avatar = '', RegistrationDate = "", Age = 0, Signature = "", Location = '', 
                 localT = "", TimeSpent = 0, LastVisitDue = "", TotalPosts = 0, Reputation = 0, 
                 Prestige = 0, Homepage = '', LastParse = "", parsed = False, URL = "",
-                LastPostDate = "", FirstPostDate = ""):
+                LastPostDate = "", FirstPostDate = "", Database = "postgres"):
 
         self.IdMember         = IdMember  # integer   
         self.Site             = Site  # integer     
@@ -26,6 +26,7 @@ class Member:
         self.URL              = URL # string
         self.LastPostDate     = LastPostDate # timestamp with time zone
         self.FirstPostDate    = FirstPostDate # timestamp with time zone
+        self.Database         = Database # I introduced this field to remember the origin of the user as the name of the db
 
     # returns a tuple (days, hours, minutes, seconds) representing the elapsed time 
     # since the user last logged in
