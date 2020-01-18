@@ -1,9 +1,10 @@
 from QueryData import Data
 from Post import Post
 from Member import Member
-from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, create_nodes_table_csv, extract_date_from, get_00_time_from
+from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, create_nodes_table_csv, get_date_from, get_00_time_from
 import os
 import csv
+import re
 
 # initially, similar_usernames contains low scores for similar usernames, 
 # and high scores for different usernames. This function reverts this behavior.
@@ -67,12 +68,15 @@ def create_members_df(names_path):
         IdMember = l[0]
         Username = l[1]
         Database = l[2]
-        LastVisitDate = extract_date_from(l[3])
-        LastVisitTime = get_00_time_from(l[4])
-        LastVisit = (LastVisitDate, LastVisitTime)
+        aux = re.split("[(,)]", l[3])
+        LastVisitDue = ()
+        for x in aux:
+            if x == "":
+                continue
+            LastVisitDue += (int(x),)
         
         # TODO maybe use the IdMember, will it be useful for something? If not, just keep using the index here (total)
-        m = Member(total, Username=Username, Database=Database)
+        m = Member(total, Username=Username, Database=Database, LastVisitDue=LastVisitDue)
         df.add_member(m)
 
         total += 1
@@ -153,6 +157,7 @@ if __name__ == "__main__":
     names_path = os.path.join(os.getcwd(), "..\\res\\Members.txt")
     df = create_members_df(names_path)
     active_users = df.get_active_users() # list of Member objects
+    print("The total number of active members is " + str(len(active_users)) + ".")
     similar_usernames_tuples = get_similar_usernames(active_users, 0)
     similar_usernames_dict = tuples_to_dict(similar_usernames_tuples)
 

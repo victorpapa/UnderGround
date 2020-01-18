@@ -1,5 +1,6 @@
 import os
 import subprocess
+from Utils import get_time_diff, get_00_time_from, get_date_from
 
 class postgres_interface:
     
@@ -75,7 +76,7 @@ if __name__ == "__main__":
 
     for db_name in db_names:
         print(db_name)
-        command = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC LIMIT 5000;"
+        command = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC LIMIT 2000;"
 
         try:
             output = pi.run_command(command, db_name)
@@ -84,18 +85,52 @@ if __name__ == "__main__":
 
         output = output.split("\r\n")
         aux = []
+        ref_date = "None"
+
+        # when getting the Member.txt data, instead of fetching the real LastVisitedDue values, retrieve only
+        # the time elapsed when compared to the most recent log in on that website. Only store this tuple in
+        # the LastVisitedDue field of the Member objects and use it to query the Data object on the set of active
+        # users.
 
         # iterate from 2, because the first two lines are the title and a delimiting line ------
         # stop at len(output) - 4, because the last 2 are just empty strings, and the one before contains the number of
         # rows, e.g. "(1064 rows)"
         for i in range(2, len(output) - 3):
             row = output[i].split(" | ")
+
+            if len(row) != 3:
+                print(output[i] + " was skipped.")
+                continue
+
             ID   = row[0].strip()
             name = row[1].strip()
-            last_visit = row[2].strip()
+            last_visit = row[2].strip().split()
+
+            # if no last visit time is provided, ignore this user
+            if last_visit == []:
+                continue
+            
+            if "Money" in last_visit[1]:
+                a = 1
+                a -= 1
+                
+            (to_add, time) = get_00_time_from(last_visit[1])
+            date = get_date_from(last_visit[0])
+            # may have to add/remove one day due to time zone
+            date = (date[0] + to_add,) + date[1:]
+
+            for x in time:
+                date += (x,)
+
+
+            if ref_date == "None":
+                ref_date = date
+
             if name != "NONE":
                 if (ID, name, db_name) not in accounts:
-                    aux += [(ID, name, db_name, last_visit)]
+                    elapsed_time = get_time_diff(ref_date, date)
+                    aux += [(ID, name, db_name, elapsed_time)]
+
 
         accounts += aux
 
@@ -111,8 +146,8 @@ if __name__ == "__main__":
         to_write = ""
         l = len(entry) - 1 
         for i in range(l):
-            to_write += entry[i] + " "
-        to_write += entry[l] + "\n"
+            to_write += str(entry[i]).replace(" ", "") + " "
+        to_write += str(entry[l]).replace(" ", "") + "\n"
 
         g.write(to_write)
         

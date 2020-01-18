@@ -3,14 +3,14 @@ import nltk
 import math
 import re
 
-# input: tuple: (days, hours, minutes, seconds)
+# input: tuple: (years, months, days, hours, minutes, seconds)
 # return true if tuple is at least (including) "days" days long
 # return false otherwise
 def is_longer_than(time, days):
-    d = time[0]
-    h = time[1]
-    m = time[2]
-    s = time[3]
+    d = time[0] * 365 + time[1] * 30 + time[2]
+    h = time[3]
+    m = time[4]
+    s = time[5]
 
     if d > days:
         return True
@@ -23,64 +23,6 @@ def is_longer_than(time, days):
 
     return True
 
-# returns True if date1 >= date2, both dates given as tuples: (days, hours, minutes, seconds)
-def is_later_than(date1, date2):
-    if date1[0] > date2[0]:
-        return True
-    
-    if date1[0] < date2[0]:
-        return False
-
-    if date1[1] > date2[1]:
-        return True
-
-    if date1[1] < date2[1]:
-        return False
-    
-    if date1[2] > date2[2]:
-        return True
-    
-    if date1[2] < date2[2]:
-        return False
-
-    if date1[3] > date2[3]:
-        return True
-
-    if date1[3] < date2[3]:
-        return False
-
-    return False
-
-# return the distance between date1 and date2, in a tuple: (days, hours, minutes, seconds)
-# if date1 <= date2, the method will return (0, 0, 0, 0)
-def get_date_distance(date1, date2):
-    d = 0
-    h = 0
-    m = 0
-    s = 0
-
-    if not is_later_than(date1, date2):
-        return (0, 0, 0, 0)
-
-    s = date1[3] - date2[3]
-    if s < 0:
-        s += 60
-        m -= 1
-
-    m += date1[2] - date2[2]
-    if m < 0:
-        m += 60
-        h -= 1
-
-    h += date1[1] - date2[1]
-    if h < 0:
-        h += 24
-        d -= 1
-
-    d += date1[0] - date2[0]
-
-    return (d, h, m, s)
-
 # returns True if the string s represents an integer number
 def is_int(s):
     try: 
@@ -90,7 +32,7 @@ def is_int(s):
         return False
 
 # returns the date present in the string s
-def extract_date_from(s):
+def get_date_from(s):
 
     res = s
 
@@ -103,7 +45,7 @@ def extract_date_from(s):
     print("Couldn't extract date from " + res + ".")
     exit()
 
-# returns the number of days that should be removed from the date (due to time zone)
+# returns the number of days that should be added to the date (due to time zone)
 # and also returns the time present in the string s
 def get_00_time_from(s):
     # time example 1: 07:38:00+00
@@ -125,7 +67,7 @@ def get_00_time_from(s):
 
     h -= time_zone
 
-    if h > 24:
+    if h >= 24:
         d = 1
         h -= 24
     elif h < 0:
@@ -136,12 +78,45 @@ def get_00_time_from(s):
     
     return (d, (h, m, s))
 
+# input: date1: (years, months, days, hours, minutes, seconds)
+# input: date2: (years, months, days, hours, minutes, seconds)
+# returns the time diff with the same format as above
+# TODO test this
+def get_time_diff(date1, date2):
+    s = date1[5] - date2[5]
+    m = date1[4] - date2[4]
+    h = date1[3] - date2[3]
+    d = date1[2] - date2[2]
+    mo = date1[1] - date2[1]
+    y = date1[0] - date2[0]
+
+    if s < 0:
+        s += 60
+        m -= 1
+    
+    if m < 0:
+        m += 60
+        h -= 1
+    
+    if h < 0:
+        h += 24
+        d -= 1
+    
+    if d < 0:
+        d += 30
+        mo -= 1
+
+    if mo < 0:
+        mo += 12
+        y -= 1
+
+    return (y, mo, d, h, m, s)
+
 # returns the Levenshtein distance between username1 and username2
 def get_edit_distance(username1, username2):
 
     edit_cost = 1
     indel_cost = edit_cost / 2
-
     l1 = len(username1)
     l2 = len(username2)
 
@@ -363,7 +338,6 @@ def get_conex_components_count(edges):
             total += 1
 
     return total
-            
 
 
 if __name__ == "__main__":

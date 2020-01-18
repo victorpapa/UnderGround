@@ -1,3 +1,5 @@
+from Utils import is_longer_than
+
 class Member:
 
     def __init__(self, IdMember = 0, Site = 0, Username = "anonymous", 
@@ -28,13 +30,14 @@ class Member:
         self.FirstPostDate    = FirstPostDate # timestamp with time zone
         self.Database         = Database # I introduced this field to remember the origin of the user as the name of the db
 
-    # returns a tuple (days, hours, minutes, seconds) representing the elapsed time 
+    # returns the number of days representing the elapsed time 
     # since the user last logged in. The referece time is not the present, but the 
     # time and date of the last recorded log in on the same website that we have in the database.
-    def get_time_since_active(self):
-        
 
     def is_active(self):
+        if is_longer_than(self.LastVisitDue, 7):
+            return False
+    
         return True
 
     # returns the age of this account as (days, hours, minutes, seconds)
