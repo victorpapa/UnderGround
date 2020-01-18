@@ -61,7 +61,7 @@ class postgres_interface:
 
         return psql_dumps
 
-    def init_dbs(self, db_names):
+    def init_dbs(self, db_names, reset):
         for res in db_names:
             pi.init_database_from_resource(res, reset)
 
@@ -70,13 +70,13 @@ if __name__ == "__main__":
     pi = postgres_interface()
     pi.connect()
     db_names = pi.get_list_of_resources()
-    # pi.init_dbs(db_names, reset = False)
+    pi.init_dbs(db_names, reset = False)
 
-    accounts = []
+    accounts = {}
 
     for db_name in db_names:
         print(db_name)
-        command = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC LIMIT 2000;"
+        command = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC LIMIT 5000;"
 
         try:
             output = pi.run_command(command, db_name)
@@ -84,7 +84,7 @@ if __name__ == "__main__":
             continue
 
         output = output.split("\r\n")
-        aux = []
+        aux = {}
         ref_date = "None"
 
         # when getting the Member.txt data, instead of fetching the real LastVisitedDue values, retrieve only
@@ -110,10 +110,6 @@ if __name__ == "__main__":
             if last_visit == []:
                 continue
             
-            if "Money" in last_visit[1]:
-                a = 1
-                a -= 1
-                
             (to_add, time) = get_00_time_from(last_visit[1])
             date = get_date_from(last_visit[0])
             # may have to add/remove one day due to time zone
@@ -122,19 +118,18 @@ if __name__ == "__main__":
             for x in time:
                 date += (x,)
 
-
             if ref_date == "None":
                 ref_date = date
 
             if name != "NONE":
-                if (ID, name, db_name) not in accounts:
+                # make sure the same user isn't added twice
+                if (ID, name, db_name) not in aux:
                     elapsed_time = get_time_diff(ref_date, date)
-                    aux += [(ID, name, db_name, elapsed_time)]
+                    aux[(ID, name, db_name)] = (elapsed_time,)
+                else:
+                    print(ID + " " + name + " " + db_name)
 
-
-        accounts += aux
-
-        
+        accounts.update(aux)
 
     pi.disconnect()
 
@@ -142,13 +137,24 @@ if __name__ == "__main__":
     g = open(members_file, "w+", encoding="utf-8")
 
     print("Writing members data...")
-    for entry in accounts:
+    id_member = 0
+    for member_key in accounts:
+        member_values = accounts[member_key]
         to_write = ""
-        l = len(entry) - 1 
-        for i in range(l):
-            to_write += str(entry[i]).replace(" ", "") + " "
-        to_write += str(entry[l]).replace(" ", "") + "\n"
+        to_write += str(id_member) + " "
+        # the key contains the id, username and db_name
+        for f in member_key[1:]:
+            # TODO some usernames contain whitespaces, remove them or not?
+            to_write += f.replace(" ", "") + " "
 
+        l = len(member_values) - 1
+        for i in range(l):
+            f = str(member_values[i])
+            to_write += f.replace(" ", "") + " "
+        f = str(member_values[l])
+        to_write += f.replace(" ", "") + "\n"
+
+        id_member += 1
         g.write(to_write)
         
     print("Done!")

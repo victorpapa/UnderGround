@@ -152,14 +152,16 @@ def create_edge_table_csv(csv_file_handler, to_write):
         csv_writer.writerow([w[0], w[1], w[2], "Undirected"])
 
 # Creates a csv file containing a nodes table for building a graph
+# input: output file handle and list of member objects
 # is not tested
-def create_nodes_table_csv(csv_file_handler, to_write):
+def create_nodes_table_csv(csv_file_handler, members):
     csv_writer = csv.writer(csv_file_handler, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     csv_writer.writerow(["Id", "Label"])
-    total = 0
-    for w in to_write:
-        csv_writer.writerow([str(total), w])
-        total += 1
+
+    for member in members:
+        id_member = member.IdMember
+        username = member.Username
+        csv_writer.writerow([str(id_member), username])
 
 # input: post as a String
 # returns the list of words that make up the post
@@ -256,14 +258,6 @@ def get_knn(target, centres):
             ret = i
 
     return centres[ret]
-
-# appends missing elements from to_concat to total
-def concat_feature_dicts(total, to_concat):
-    for f in to_concat:
-        if f in total:
-            total[f] += to_concat[f]
-        else:
-            total[f] = to_concat[f]
 
 # to_be_filled will contain all the keys from total that it doesn't contain, all initialised to 0
 def fill_feature_dict(to_be_filled, total):

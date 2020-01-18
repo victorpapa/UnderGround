@@ -1,7 +1,7 @@
 from QueryData import Data
 from Post import Post
 from Member import Member
-from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, concat_feature_dicts, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, create_nodes_table_csv, get_date_from, get_00_time_from
+from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, create_nodes_table_csv, get_date_from, get_00_time_from
 import os
 import csv
 import re
@@ -46,7 +46,7 @@ def get_similar_usernames(active_users, max_dist):
                     dist = 1
 
             if dist <= max_dist:
-                # TODO make sure this gets fixed when needed
+                # TODO make sure this gets changed when needed
                 # similar_usernames += [(u1, u2, dist)]
                 # similar_usernames += [(u2, u1, dist)]
                 similar_usernames += [(id1, id2, dist)]
@@ -60,12 +60,11 @@ def get_similar_usernames(active_users, max_dist):
 def create_members_df(names_path):
     f = open(names_path, "r", encoding="utf-8")
     df = Data()
-    total = 0
 
     for l in f:
         l = l.split()
 
-        IdMember = l[0]
+        IdMember = int(l[0])
         Username = l[1]
         Database = l[2]
         aux = re.split("[(,)]", l[3])
@@ -74,17 +73,11 @@ def create_members_df(names_path):
             if x == "":
                 continue
             LastVisitDue += (int(x),)
-        
-        # TODO maybe use the IdMember, will it be useful for something? If not, just keep using the index here (total)
-        m = Member(total, Username=Username, Database=Database, LastVisitDue=LastVisitDue)
+
+        m = Member(IdMember = IdMember, Username=Username, Database=Database, LastVisitDue=LastVisitDue)
         df.add_member(m)
-
-        total += 1
-
-        if total == 40000:
-            break
             
-
+    total = IdMember + 1 # because we index from 0
     print("The total number of members is " + str(total) + ".")
 
     return df
@@ -117,7 +110,7 @@ def get_features_dict_written_by(IdMember, df, feature, presence, n):
         else:
             print("Feature type " + feature + " not implemented.")
 
-        concat_feature_dicts(ret, feat_dict)
+        ret.update(feat_dict)
 
     if presence == True:
         ret = freq_to_pres(ret)
@@ -142,7 +135,8 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
     else:
         print("Feature type " + feature + " not implemented.")
 
-    concat_feature_dicts(ret, feat_dict)
+    
+    ret.update(feat_dict)
 
     if presence == True:
         ret = freq_to_pres(ret)
@@ -169,7 +163,7 @@ if __name__ == "__main__":
     edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
     nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
     create_edge_table_csv(edges_csv_file, similar_usernames_tuples)
-    create_nodes_table_csv(nodes_csv_file, [member.Username for member in active_users])
+    create_nodes_table_csv(nodes_csv_file, active_users)
     edges_csv_file.close()
     nodes_csv_file.close()
 
