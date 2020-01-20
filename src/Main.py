@@ -1,7 +1,7 @@
 from QueryData import Data
 from Post import Post
 from Member import Member
-from Utils import get_edit_distance, create_edge_table_csv, get_bow, get_n_grams, freq_to_pres, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, create_nodes_table_csv, get_date_from, get_00_time_from
+from Utils import get_edit_distance, get_bow, get_n_grams, freq_to_pres, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, get_date_from, get_00_time_from
 import os
 import csv
 import re
@@ -56,7 +56,27 @@ def get_similar_usernames(active_users, max_dist):
 
     return similar_usernames
 
-# this method creates a Data object containing all the members in names_path
+# Creates a csv file containing an edge table for building a graph
+# is not tested
+def create_edge_table_csv(csv_file_handler, to_write):
+    csv_writer = csv.writer(csv_file_handler, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    csv_writer.writerow(["Source", "Target", "Weight", "Type"])
+    for w in to_write:
+        csv_writer.writerow([w[0], w[1], w[2], "Undirected"])
+
+# Creates a csv file containing a nodes table for building a graph
+# input: output file handle and list of member objects
+# is not tested
+def create_nodes_table_csv(csv_file_handler, members):
+    csv_writer = csv.writer(csv_file_handler, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    csv_writer.writerow(["Id", "Label"])
+
+    for member in members:
+        id_member = member.IdMember
+        username = member.Username
+        csv_writer.writerow([str(id_member), username])
+
+# this method creates a Data object containing all the Members in names_path
 def create_members_df(names_path):
     f = open(names_path, "r", encoding="utf-8")
     df = Data()
@@ -64,10 +84,20 @@ def create_members_df(names_path):
     for l in f:
         l = l.split()
 
+        if len(l) < 4:
+            print("Skipped " + str(l) + ", invalid Member object format. (probably whitespace username)")
+            continue
+
         IdMember = int(l[0])
         Username = l[1]
-        Database = l[2]
-        aux = re.split("[(,)]", l[3])
+        index = 2
+
+        while "crimebb" not in l[index].lower():
+            Username += " " + l[index]
+            index += 1
+
+        Database = l[index]
+        aux = re.split("[(,)]", l[index + 1])
         LastVisitDue = ()
         for x in aux:
             if x == "":
@@ -89,7 +119,7 @@ def create_members_df(names_path):
 # n is for n-grams
 # presence is for whether we want feeature presence or not
 # TODO potentially make a function that returns a similar mapping, but which also maps each post to the vectors
-# this function aggregates all the posts and returns the overall feature vector
+# this function does the opposite, it aggregates all the posts and returns the overall feature vector
 def get_features_dict_written_by(IdMember, df, feature, presence, n):
 
     ret = {}
@@ -120,6 +150,7 @@ def get_features_dict_written_by(IdMember, df, feature, presence, n):
 
     return ret
 
+# returns the dictionary of features for the given post
 def get_features_dict_for_post(post, feature, presence, n = 1):
 
     ret = {}
@@ -155,11 +186,6 @@ if __name__ == "__main__":
     similar_usernames_tuples = get_similar_usernames(active_users, 0)
     similar_usernames_dict = tuples_to_dict(similar_usernames_tuples)
 
-    centroids = []
-    features = {}
-    feat_type = "bow"
-    n = 1
-
     edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
     nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
     create_edge_table_csv(edges_csv_file, similar_usernames_tuples)
@@ -171,6 +197,11 @@ if __name__ == "__main__":
     print("The number of conex components is " + str(conex_components_count) + ".")
 
     exit()
+
+    centroids = []
+    features = {}
+    feat_type = "bow"
+    n = 1
 
     # Obtain the clusters
     # TODO test this

@@ -35,8 +35,8 @@ class Member:
     # time and date of the last recorded log in on the same website that we have in the database.
 
     def is_active(self):
-        # if is_longer_than(self.LastVisitDue, 7):
-        #     return False
+        if is_longer_than(self.LastVisitDue, 30):
+            return False
     
         return True
 

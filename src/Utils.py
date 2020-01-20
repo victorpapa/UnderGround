@@ -143,26 +143,6 @@ def get_edit_distance(username1, username2):
 
     return dp[l1][l2]
 
-# Creates a csv file containing an edge table for building a graph
-# is not tested
-def create_edge_table_csv(csv_file_handler, to_write):
-    csv_writer = csv.writer(csv_file_handler, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    csv_writer.writerow(["Source", "Target", "Weight", "Type"])
-    for w in to_write:
-        csv_writer.writerow([w[0], w[1], w[2], "Undirected"])
-
-# Creates a csv file containing a nodes table for building a graph
-# input: output file handle and list of member objects
-# is not tested
-def create_nodes_table_csv(csv_file_handler, members):
-    csv_writer = csv.writer(csv_file_handler, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    csv_writer.writerow(["Id", "Label"])
-
-    for member in members:
-        id_member = member.IdMember
-        username = member.Username
-        csv_writer.writerow([str(id_member), username])
-
 # input: post as a String
 # returns the list of words that make up the post
 def get_tokens_from(post):
@@ -185,7 +165,7 @@ def stem_post(post):
     
     return ret
 
-# input: list of tokens
+# input: post as a list of tokens
 # output: dictionary containing all n-grams and the occurences
 def get_n_grams(post, n):
     ret = {}
