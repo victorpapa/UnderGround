@@ -143,6 +143,7 @@ def get_edit_distance(username1, username2):
 
     return dp[l1][l2]
 
+
 # input: post as a String
 # returns the list of words that make up the post
 def get_tokens_from(post):

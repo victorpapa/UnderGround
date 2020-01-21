@@ -165,7 +165,7 @@ if __name__ == "__main__":
     pi = postgres_interface()
     pi.connect()
     
-    # pi.init_dbs(reset = False)
+    pi.init_dbs(reset = False)
     query = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC;"
     accounts = pi.get_accounts_from_all_dbs(query)
 
@@ -175,4 +175,3 @@ if __name__ == "__main__":
     write_member_data(members_file, accounts)
     
 
-    
