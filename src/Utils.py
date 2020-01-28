@@ -289,7 +289,7 @@ def tuples_to_dict(tuples):
     return ret
 
 # edges is an edge table for a weighted graph, e.g. source -> (target, weight)
-# performs a dfs
+# performs a dfs and keeps track of visited nodes
 def visit(node, edges, visited):
 
     visited[node] = True
@@ -311,6 +311,36 @@ def get_conex_components_count(edges):
         if not visited[u]:
             visit(u, edges, visited)
             total += 1
+
+    return total
+
+# edges is an edge table for a weighted graph, e.g. source -> (target, weight)
+# performs a dfs and returns the current conex component
+# TODO test
+def get_current_cluster(node, edges, visited, cluster):
+
+    cluster += [node]
+    visited[node] = True
+
+    for (n, _) in edges[node]:
+        if not visited[n]:
+            get_current_cluster(n, edges, visited, cluster)
+
+# given a dictionary representing an undirected graph, obtain the list of conex components
+# edges is an edge table for a weighted graph, e.g. source -> (target, weight)
+# TODO test
+def get_clusters(edges):
+
+    total = []
+    visited = {}
+    for u in edges:
+        visited[u] = False
+
+    for u in edges:
+        if not visited[u]:
+            cluster = []
+            get_current_cluster(u, edges, visited, cluster)
+            total += [cluster]
 
     return total
 

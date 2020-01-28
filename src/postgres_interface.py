@@ -101,7 +101,7 @@ class postgres_interface:
                     row[2] = row[len(row) - 1]
                     row = row[:3]
 
-                    print(row[1])
+                    print("The name " + str(row[1]) + " contains a vertical bar.")
 
                 ID   = row[0].strip()
                 name = row[1].strip()
@@ -128,9 +128,18 @@ class postgres_interface:
                     ref_date = date
 
                 if name != "NONE":
-                    # how long has this user been inactive for? (time since last log in)
-                    elapsed_time = get_time_diff(ref_date, date)
-                    aux += [(ID, name, db_name, elapsed_time)]
+                    # If the same username was found in this database, ignore the current one
+                    ok = True
+                    for (_, n, _, _) in aux:
+                        if n == name:
+                            ok = False
+                            print("Ignored " + name + ". Already seen in the database. " + db_name)
+                            break
+
+                    if ok == True:
+                        # how long has this user been inactive for? (time since last log in)
+                        elapsed_time = get_time_diff(ref_date, date)
+                        aux += [(ID, name, db_name, elapsed_time)]
 
             accounts += aux
 
@@ -165,7 +174,8 @@ if __name__ == "__main__":
     pi = postgres_interface()
     pi.connect()
     
-    pi.init_dbs(reset = False)
+    # ONLY USE WHEN ADDING NEW DATABASES (careful not to set reset to True and wipe everything for no reason)
+    # pi.init_dbs(reset = False)
     query = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC;"
     accounts = pi.get_accounts_from_all_dbs(query)
 
@@ -173,5 +183,5 @@ if __name__ == "__main__":
 
     members_file = os.path.join(os.getcwd(), "..\\res\\Members.txt")
     write_member_data(members_file, accounts)
-    
+
 

@@ -1,7 +1,7 @@
 from QueryData import Data
 from Post import Post
 from Member import Member
-from Utils import get_edit_distance, get_bow, get_n_grams, freq_to_pres, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, get_date_from, get_00_time_from
+from Utils import get_edit_distance, get_bow, get_n_grams, freq_to_pres, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, get_clusters
 import os
 import csv
 import re
@@ -106,6 +106,9 @@ def create_members_df(names_path):
 
         m = Member(IdMember = IdMember, Username=Username, Database=Database, LastVisitDue=LastVisitDue)
         df.add_member(m)
+
+        if IdMember == 10000:
+            break
             
     total = IdMember + 1 # because we index from 0
     print("The total number of members is " + str(total) + ".")
@@ -186,39 +189,35 @@ if __name__ == "__main__":
     similar_usernames_tuples = get_similar_usernames(active_users, 0)
     similar_usernames_dict = tuples_to_dict(similar_usernames_tuples)
 
-    edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
-    nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
-    create_edge_table_csv(edges_csv_file, similar_usernames_tuples)
-    create_nodes_table_csv(nodes_csv_file, active_users)
-    edges_csv_file.close()
-    nodes_csv_file.close()
+    # edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
+    # nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
+    # create_edge_table_csv(edges_csv_file, similar_usernames_tuples)
+    # create_nodes_table_csv(nodes_csv_file, active_users)
+    # edges_csv_file.close()
+    # nodes_csv_file.close()
 
     conex_components_count = get_conex_components_count(similar_usernames_dict)
     print("The number of conex components is " + str(conex_components_count) + ".")
 
-    exit()
-
     centroids = []
     features = {}
     feat_type = "bow"
+    use_presence = False
     n = 1
 
     # Obtain the clusters
     # TODO test this
     
-    clusters = []
+    clusters = get_clusters(similar_usernames_dict)
+    print(clusters)
 
-    for user in similar_usernames_dict:
-        cluster = [user]
-        for (n, _) in similar_usernames_dict[user]:
-            cluster += [n]
+    exit()
 
     for cluster in clusters:
 
         # Obtain the vector for each user
 
         user_vectors = {}
-        use_presence = False
 
         for user in cluster:
             d = get_features_dict_written_by(user.IdMember, 
