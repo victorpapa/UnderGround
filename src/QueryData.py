@@ -1,3 +1,5 @@
+from postgres_interface import postgres_interface
+
 class Data:
 
     def __init__(self): 
@@ -38,12 +40,12 @@ class Data:
                 return m
 
     # returns a list of Post objects that were written by Author with ID
-    def get_posts_written_by(self, ID):
+    def get_posts_written_by(self, acc_ID):
 
         ret = []
 
         for p in self.posts:
-            if p.Author == ID:
+            if p.Author == acc_ID:
                 ret += [p]
 
         return ret

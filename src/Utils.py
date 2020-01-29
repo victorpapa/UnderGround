@@ -48,14 +48,14 @@ def get_date_from(s):
 # returns the number of days that should be added to the date (due to time zone)
 # and also returns the time present in the string s
 def get_00_time_from(s):
-    # time example 1: 07:38:00+00
-    # time example 2: 17:11:55.376518+01
+    # time example 1: 07:38:00+00:00
+    # time example 2: 17:11:55.376518+01:00
     if "+" in s:
         s = s.split("+")
-        time_zone = int(s[1])
+        time_zone = int(s[1].split(":")[0])
     elif "-" in s:
         s = s.split("-")
-        time_zone = -int(s[1])
+        time_zone = -int(s[1].split(":")[0])
     else:
         print("Invalid time format: " + s + ".")
         exit()

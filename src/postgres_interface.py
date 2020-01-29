@@ -1,5 +1,6 @@
 import os
 import subprocess
+import psycopg2
 from Utils import get_time_diff, get_00_time_from, get_date_from, is_int
 
 class postgres_interface:
@@ -16,11 +17,13 @@ class postgres_interface:
 
         return psql_dumps
 
-    def disconnect(self):
+    def stop_server(self):
         subprocess.call("pg_ctl.exe -D \"W:\crimebb\" stop")
+        self.conn.close()
 
-    def connect(self):
+    def start_server(self):
         subprocess.call("pg_ctl.exe -D \"W:\crimebb\" start")
+        self.conn = psycopg2.connect(host="localhost", database="postgres", user="postgres", password="postgrespass12345")
 
     def init_database_from_resource(self, res_name, reset):
         curr_folder = os.getcwd()
@@ -50,12 +53,29 @@ class postgres_interface:
         # restore path
         os.chdir(curr_folder)
 
-    def run_command(self, cmd, db_name = "postgres"):
-        print("Running " + cmd + " ...")
-        output = subprocess.check_output(["psql", "--username=postgres", "--dbname=" + db_name, "-c", cmd])
+    def run_command(self, cmd, silent = False):
+        if silent == False:
+            print("Running " + cmd)
 
-        # the output returned by check_output is of type "bytes", which needs to be decoded
-        output = output.decode("utf-8")
+        cur = self.conn.cursor()
+        cur.execute(cmd)
+        output = cur.fetchall()
+
+        if "SELECT" in cmd and silent == False:
+            print("The query returned " + str(cur.rowcount) + " entries.")
+
+        for i in range(len(output)):
+            aux = ()
+            for item in output[i]:
+                if type(item) != str:
+                    item = str(item)
+                
+                aux = aux + (item,)
+
+            output[i] = aux
+
+        cur.close()
+        self.conn.commit()
 
         return output
 
@@ -65,28 +85,23 @@ class postgres_interface:
 
     # returns a list of accounts from all the databases
     # an account is a tuple (ID, Username, Database, TimeSinceLastLogIn)
-    def get_accounts_and_posts_from_all_dbs(self, query_acc, query_posts_template):
+    def get_accounts_from_all_dbs(self, query_acc, query_posts_template):
 
         accounts = []
         posts = []
         
         for db_name in self.db_names:
-            print(db_name)
+            self.conn.close()
+            self.conn = psycopg2.connect(host="localhost", database=db_name, user="postgres", password="postgrespass12345")
+            print("Connected to " + db_name + ".")
 
-            # TODO remove this
-            if db_name == "crimebb-hack-forums-2020-01-02":
-                break
+            try:
+                output = self.run_command(query_acc)
+            except:
+                print("Command failed to run.")
+                exit()
 
-            output = self.run_command(query_acc, db_name)
-            # try:
-            #     output = self.run_command(query_acc, db_name)
-            # except:
-            #     print("Command failed to run.")
-            #     exit()
-
-            output = output.split("\r\n")
             acc_aux = []
-            posts_aux = []
             ref_date = "None"
 
             # when getting the Member.txt data, instead of fetching the real LastVisitedDue values, retrieve only
@@ -94,22 +109,7 @@ class postgres_interface:
             # the LastVisitedDue field of the Member objects and use it to query the Data object on the set of active
             # users.
 
-            # iterate from 2, because the first two lines are the title and a delimiting line ------
-            # stop at len(output) - 4, because the last 2 are just empty strings, and the one before contains the number of
-            # rows, e.g. "(1064 rows)"
-            print(output[len(output) - 3])
-
-            for i in range(2, len(output) - 3):
-                row = output[i].split("|")
-
-                if len(row) != 3:
-                    # Some names contain " | ", so we have to re-build them
-                    for i in range(2, len(row) - 1):
-                        row[1] += "|" + row[i]
-                    row[2] = row[len(row) - 1]
-                    row = row[:3]
-
-                    print("The name " + str(row[1]) + " contains a vertical bar.")
+            for row in output:
 
                 acc_ID   = row[0].strip()
                 acc_name = row[1].strip()
@@ -118,7 +118,7 @@ class postgres_interface:
                                                     # the second element is the time of that day
 
                 # if no last visit time is provided, ignore this user
-                if last_visit == []:
+                if last_visit == ["None"]:
                     continue
                 
                 # obtain the time zone difference (+/- 1 day) as an int, and the time at +00 as a tuple
@@ -151,43 +151,44 @@ class postgres_interface:
                     elapsed_time = get_time_diff(ref_date, date)
                     # add this member to the list of members
                     acc_aux += [(acc_ID, acc_name, db_name, elapsed_time)]
-
-
-                    # now, obtain all the posts written by this user on this website
-                    query_curr_post = query_posts_template + str(acc_ID) + ";"
-
-                    try:
-                        posts_output = self.run_command(query_curr_post, db_name)
-                    except:
-                        continue
-
-                    posts_output = posts_output.split("\r\n")
-
-                    for i in posts_output[2:len(posts_output) - 3]:
-                        row = i.split("|")
-                        if len(row) > 3:
-                            print("This row had vertical bars: " + row)
-                            exit()
-
-                        post_ID   = row[0].strip()
-                        if not is_int(post_ID):
-                            continue
-
-                        author_ID = row[1].strip()
-                        if not is_int(author_ID):
-                            continue
-
-                        content = row[2]
-
-                        print(post_ID + " " + author_ID + " " + content)
-
-                        posts_aux += [(post_ID, author_ID, content)]
                                          
 
             accounts += acc_aux
-            posts += posts_aux
-
+        
         return (accounts, posts)
+
+    # returns a lit of all the posts written by acc_ID
+    def get_posts_from(self, acc_ID, db_name):
+        # now, obtain all the posts written by this user on this website
+        self.conn = psycopg2.connect(host="localhost", database=db_name, user="postgres", password="postgrespass12345")
+
+        query_posts_template = "SELECT \"IdPost\", \"Author\", \"Content\" FROM \"Post\" WHERE \"Author\" = "
+        query_curr_post = query_posts_template + str(acc_ID) + " LIMIT 1;"
+
+        try:
+            posts_output = self.run_command(query_curr_post, silent = True)
+        except:
+            print("Command " + query_curr_post + " failed.")
+            exit()
+
+        ret = []
+
+        for row in posts_output:
+
+            post_ID   = row[0].strip()
+            if not is_int(post_ID):
+                continue
+
+            author_ID = row[1].strip()
+            if not is_int(author_ID):
+                continue
+
+            content = row[2]
+
+            ret += [(post_ID, author_ID, content)]
+
+        self.conn.close()
+        return ret
 
 
 # writes the data about the members in the "accounts" list
@@ -215,7 +216,7 @@ def write_member_data(members_file, accounts):
 
 # writes the data about the posts in the "posts" list
 def write_posts_data(posts_file, posts):
-    g = open(members_file, "w+", encoding="utf-8")
+    g = open(posts_file, "w+", encoding="utf-8")
 
     print("Writing posts data...")
     for post in posts:
@@ -233,15 +234,15 @@ def write_posts_data(posts_file, posts):
 
 if __name__ == "__main__":
     pi = postgres_interface()
-    pi.connect()
+    pi.start_server()
     
     # ONLY USE WHEN ADDING NEW DATABASES (careful not to set reset to True and wipe everything for no reason)
     # pi.init_dbs(reset = False)
-    query_acc = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC;"
-    query_posts = "SELECT \"IdPost\", \"Author\", \"Content\" FROM \"Post\" WHERE \"Author\" = "
-    (accounts, posts) = pi.get_accounts_and_posts_from_all_dbs(query_acc, query_posts)
 
-    pi.disconnect()
+    query_acc = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC LIMIT 1;"
+    (accounts, posts) = pi.get_accounts_from_all_dbs(query_acc)
+
+    pi.stop_server()
 
     members_file = os.path.join(os.getcwd(), "..\\res\\Members.txt")
     write_member_data(members_file, accounts)

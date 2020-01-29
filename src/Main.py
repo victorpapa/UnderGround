@@ -1,6 +1,7 @@
 from QueryData import Data
 from Post import Post
 from Member import Member
+from postgres_interface import postgres_interface
 from Utils import get_edit_distance, get_bow, get_n_grams, freq_to_pres, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, normalise_feature_vector, get_dist, get_conex_components_count, get_clusters
 import os
 import csv
@@ -115,6 +116,25 @@ def create_members_df(names_path):
 
     return df
 
+def add_posts_to_df(df, active_users):
+
+    pi = postgres_interface()
+    pi.start_server()
+
+    for user in active_users:
+        raw_posts = pi.get_posts_from(user.IdMember, user.Database)
+
+        for raw_post in raw_posts:
+            post_ID = raw_post[0]
+            author_ID = raw_post[1]
+            content = raw_post[2]
+
+            post = Post(IdPost=post_ID, Author=author_ID, Content=content)
+            df.add_post(post)
+
+    pi.stop_server()
+    print("The Data object now has " + str(df.get_post_count()) + " posts.")
+
 # aggregates all the vectors representing the posts written by IdMember, and returns
 # the centre of mass of those vectors (if presence is False)
 # df is a reference to a Data object
@@ -185,6 +205,7 @@ if __name__ == "__main__":
     names_path = os.path.join(os.getcwd(), "..\\res\\Members.txt")
     df = create_members_df(names_path)
     active_users = df.get_active_users() # list of Member objects
+    add_posts_to_df(df, active_users)
     print("The total number of active members is " + str(len(active_users)) + ".")
     similar_usernames_tuples = get_similar_usernames(active_users, 0)
     similar_usernames_dict = tuples_to_dict(similar_usernames_tuples)
