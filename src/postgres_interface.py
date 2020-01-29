@@ -1,6 +1,6 @@
 import os
 import subprocess
-from Utils import get_time_diff, get_00_time_from, get_date_from
+from Utils import get_time_diff, get_00_time_from, get_date_from, is_int
 
 class postgres_interface:
     
@@ -61,24 +61,32 @@ class postgres_interface:
 
     def init_dbs(self, reset):
         for res in self.db_names:
-            pi.init_database_from_resource(res, reset)
+            self.init_database_from_resource(res, reset)
 
     # returns a list of accounts from all the databases
     # an account is a tuple (ID, Username, Database, TimeSinceLastLogIn)
-    def get_accounts_from_all_dbs(self, query):
+    def get_accounts_and_posts_from_all_dbs(self, query_acc, query_posts_template):
 
         accounts = []
-
+        posts = []
+        
         for db_name in self.db_names:
             print(db_name)
 
-            try:
-                output = pi.run_command(query, db_name)
-            except:
-                continue
+            # TODO remove this
+            if db_name == "crimebb-hack-forums-2020-01-02":
+                break
+
+            output = self.run_command(query_acc, db_name)
+            # try:
+            #     output = self.run_command(query_acc, db_name)
+            # except:
+            #     print("Command failed to run.")
+            #     exit()
 
             output = output.split("\r\n")
-            aux = []
+            acc_aux = []
+            posts_aux = []
             ref_date = "None"
 
             # when getting the Member.txt data, instead of fetching the real LastVisitedDue values, retrieve only
@@ -103,8 +111,8 @@ class postgres_interface:
 
                     print("The name " + str(row[1]) + " contains a vertical bar.")
 
-                ID   = row[0].strip()
-                name = row[1].strip()
+                acc_ID   = row[0].strip()
+                acc_name = row[1].strip()
                 last_visit = row[2].strip().split() # this should now be a list containing info about the last login date and time
                                                     # the first element is the date
                                                     # the second element is the time of that day
@@ -127,23 +135,59 @@ class postgres_interface:
                 if ref_date == "None":
                     ref_date = date
 
-                if name != "NONE":
-                    # If the same username was found in this database, ignore the current one
-                    ok = True
-                    for (_, n, _, _) in aux:
-                        if n == name:
-                            ok = False
-                            print("Ignored " + name + ". Already seen in the database. " + db_name)
-                            break
+                if acc_name == "NONE":
+                    continue
 
-                    if ok == True:
-                        # how long has this user been inactive for? (time since last log in)
-                        elapsed_time = get_time_diff(ref_date, date)
-                        aux += [(ID, name, db_name, elapsed_time)]
+                # If the same username was found in this database, ignore the current one
+                ok = True
+                for (_, n, _, _) in acc_aux:
+                    if n == acc_name:
+                        ok = False
+                        print("Ignored " + acc_name + ". Already seen in the database. " + db_name)
+                        break
 
-            accounts += aux
+                if ok == True:
+                    # how long has this user been inactive for? (time since last log in)
+                    elapsed_time = get_time_diff(ref_date, date)
+                    # add this member to the list of members
+                    acc_aux += [(acc_ID, acc_name, db_name, elapsed_time)]
 
-        return accounts
+
+                    # now, obtain all the posts written by this user on this website
+                    query_curr_post = query_posts_template + str(acc_ID) + ";"
+
+                    try:
+                        posts_output = self.run_command(query_curr_post, db_name)
+                    except:
+                        continue
+
+                    posts_output = posts_output.split("\r\n")
+
+                    for i in posts_output[2:len(posts_output) - 3]:
+                        row = i.split("|")
+                        if len(row) > 3:
+                            print("This row had vertical bars: " + row)
+                            exit()
+
+                        post_ID   = row[0].strip()
+                        if not is_int(post_ID):
+                            continue
+
+                        author_ID = row[1].strip()
+                        if not is_int(author_ID):
+                            continue
+
+                        content = row[2]
+
+                        print(post_ID + " " + author_ID + " " + content)
+
+                        posts_aux += [(post_ID, author_ID, content)]
+                                         
+
+            accounts += acc_aux
+            posts += posts_aux
+
+        return (accounts, posts)
 
 
 # writes the data about the members in the "accounts" list
@@ -169,6 +213,23 @@ def write_member_data(members_file, accounts):
     print("Done!")
     g.close()
 
+# writes the data about the posts in the "posts" list
+def write_posts_data(posts_file, posts):
+    g = open(members_file, "w+", encoding="utf-8")
+
+    print("Writing posts data...")
+    for post in posts:
+        to_write = ""
+
+        for f in post[:len(post) - 1]:
+            to_write += str(f) + " "
+        to_write += str(post[len(post) - 1]) + "\n"
+
+        g.write(to_write)
+        
+    print("Done!")
+    g.close()
+
 
 if __name__ == "__main__":
     pi = postgres_interface()
@@ -176,12 +237,16 @@ if __name__ == "__main__":
     
     # ONLY USE WHEN ADDING NEW DATABASES (careful not to set reset to True and wipe everything for no reason)
     # pi.init_dbs(reset = False)
-    query = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC;"
-    accounts = pi.get_accounts_from_all_dbs(query)
+    query_acc = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC;"
+    query_posts = "SELECT \"IdPost\", \"Author\", \"Content\" FROM \"Post\" WHERE \"Author\" = "
+    (accounts, posts) = pi.get_accounts_and_posts_from_all_dbs(query_acc, query_posts)
 
     pi.disconnect()
 
     members_file = os.path.join(os.getcwd(), "..\\res\\Members.txt")
     write_member_data(members_file, accounts)
+
+    posts_file = os.path.join(os.getcwd(), "..\\res\\Posts.txt")
+    write_posts_data(posts_file, posts)
 
 

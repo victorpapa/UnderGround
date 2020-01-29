@@ -107,7 +107,7 @@ def create_members_df(names_path):
         m = Member(IdMember = IdMember, Username=Username, Database=Database, LastVisitDue=LastVisitDue)
         df.add_member(m)
 
-        if IdMember == 10000:
+        if IdMember == 20000:
             break
             
     total = IdMember + 1 # because we index from 0
