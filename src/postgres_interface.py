@@ -1,6 +1,8 @@
 import os
 import subprocess
 import psycopg2
+import logging
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from Utils import get_time_diff, get_00_time_from, get_date_from, is_int
 
 class postgres_interface:
@@ -24,6 +26,7 @@ class postgres_interface:
     def start_server(self):
         subprocess.call("pg_ctl.exe -D \"W:\crimebb\" start")
         self.conn = psycopg2.connect(host="localhost", database="postgres", user="postgres", password="postgrespass12345")
+        self.conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
 
     def init_database_from_resource(self, res_name, reset):
         curr_folder = os.getcwd()
@@ -37,32 +40,40 @@ class postgres_interface:
                 self.run_command("DROP DATABASE \"" + db_name + "\";")
             except:
                 pass
-
+        
         try:
             # Create the database
             self.run_command("CREATE DATABASE \"" + db_name + "\";")
-        except:
+        except psycopg2.errors.DuplicateDatabase as e:
+            logging.error(e)
             # Database already existent, exit method
             # but first, restore path
             os.chdir(curr_folder)
             return
 
+        logging.info("Populating db... " + db_name)
         # Use the psql dump to populate the database
         subprocess.call(["psql", "--username=postgres", "--dbname=" + db_name, "--file=" + res_name + ".sql"])
-
+        logging.info("Done")
         # restore path
         os.chdir(curr_folder)
 
     def run_command(self, cmd, silent = False):
         if silent == False:
-            print("Running " + cmd)
+            logging.info("Running " + cmd)
 
         cur = self.conn.cursor()
         cur.execute(cmd)
-        output = cur.fetchall()
+        try:
+            output = cur.fetchall()
+        except psycopg2.ProgrammingError as e:
+            # There may be no results to fetch from the command, so just return
+            cur.close()
+            self.conn.commit()
+            return
 
         if "SELECT" in cmd and silent == False:
-            print("The query returned " + str(cur.rowcount) + " entries.")
+            logging.info("The query returned " + str(cur.rowcount) + " entries.")
 
         for i in range(len(output)):
             aux = ()
@@ -85,20 +96,19 @@ class postgres_interface:
 
     # returns a list of accounts from all the databases
     # an account is a tuple (ID, Username, Database, TimeSinceLastLogIn)
-    def get_accounts_from_all_dbs(self, query_acc, query_posts_template):
+    def persist_accounts_from_all_dbs(self, query_acc, members_file_handle):
 
-        accounts = []
-        posts = []
+        self.id_member = 0
         
         for db_name in self.db_names:
             self.conn.close()
             self.conn = psycopg2.connect(host="localhost", database=db_name, user="postgres", password="postgrespass12345")
-            print("Connected to " + db_name + ".")
+            logging.info("Connected to " + db_name + ".")
 
             try:
                 output = self.run_command(query_acc)
             except:
-                print("Command failed to run.")
+                logging.critical("Command failed to run.")
                 exit()
 
             acc_aux = []
@@ -143,7 +153,7 @@ class postgres_interface:
                 for (_, n, _, _) in acc_aux:
                     if n == acc_name:
                         ok = False
-                        print("Ignored " + acc_name + ". Already seen in the database. " + db_name)
+                        logging.warning("Ignored " + acc_name + ". Already seen in the database. " + db_name)
                         break
 
                 if ok == True:
@@ -152,10 +162,7 @@ class postgres_interface:
                     # add this member to the list of members
                     acc_aux += [(acc_ID, acc_name, db_name, elapsed_time)]
                                          
-
-            accounts += acc_aux
-        
-        return (accounts, posts)
+            self.write_member_data(members_file_handle, acc_aux)
 
     # returns a lit of all the posts written by acc_ID
     def get_posts_from(self, acc_ID, db_name):
@@ -163,12 +170,12 @@ class postgres_interface:
         self.conn = psycopg2.connect(host="localhost", database=db_name, user="postgres", password="postgrespass12345")
 
         query_posts_template = "SELECT \"IdPost\", \"Author\", \"Content\" FROM \"Post\" WHERE \"Author\" = "
-        query_curr_post = query_posts_template + str(acc_ID) + " LIMIT 1;"
+        query_curr_post = query_posts_template + str(acc_ID) + " ORDER BY \"IdPost\" DESC LIMIT 10;"
 
         try:
             posts_output = self.run_command(query_curr_post, silent = True)
         except:
-            print("Command " + query_curr_post + " failed.")
+            logging.critical("Command " + query_curr_post + " failed.")
             exit()
 
         ret = []
@@ -191,45 +198,22 @@ class postgres_interface:
         return ret
 
 
-# writes the data about the members in the "accounts" list
-# the list contains tuples that represent (ID, Username, Database, TimeSinceLastLogIn)
-def write_member_data(members_file, accounts):
-    g = open(members_file, "w+", encoding="utf-8")
+    # writes the data about the members in the "accounts" list
+    # the list contains tuples that represent (ID, Username, Database, TimeSinceLastLogIn)
+    def write_member_data(self, g, accounts):
 
-    print("Writing members data...")
-    id_member = 0
-    for account in accounts:
-        to_write = ""
-        to_write += str(id_member) + " "
-        l = len(account) - 1
-        for f in account[1:l]:
-            # TODO some usernames contain whitespaces, remove them or not?
-            to_write += f.replace(" ", "") + " "
-        f = str(account[l])
-        to_write += f.replace(" ", "") + "\n"
+        for account in accounts:
+            to_write = ""
+            to_write += str(self.id_member) + " "
+            l = len(account) - 1
+            for f in account[1:l]:
+                # TODO some usernames contain whitespaces, remove them or not?
+                to_write += f.replace(" ", "") + " "
+            f = str(account[l])
+            to_write += f.replace(" ", "") + "\n"
 
-        id_member += 1
-        g.write(to_write)
-        
-    print("Done!")
-    g.close()
-
-# writes the data about the posts in the "posts" list
-def write_posts_data(posts_file, posts):
-    g = open(posts_file, "w+", encoding="utf-8")
-
-    print("Writing posts data...")
-    for post in posts:
-        to_write = ""
-
-        for f in post[:len(post) - 1]:
-            to_write += str(f) + " "
-        to_write += str(post[len(post) - 1]) + "\n"
-
-        g.write(to_write)
-        
-    print("Done!")
-    g.close()
+            self.id_member += 1
+            g.write(to_write)
 
 
 if __name__ == "__main__":
@@ -237,17 +221,16 @@ if __name__ == "__main__":
     pi.start_server()
     
     # ONLY USE WHEN ADDING NEW DATABASES (careful not to set reset to True and wipe everything for no reason)
-    # pi.init_dbs(reset = False)
+    pi.init_dbs(reset = False)
 
-    query_acc = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC LIMIT 1;"
-    (accounts, posts) = pi.get_accounts_from_all_dbs(query_acc)
+    query_acc = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv  FROM \"Member\" ORDER BY lv DESC;"
+    members_file = os.path.join(os.getcwd(), "..\\res\\Members.txt")
+    g = open(members_file, "w+", encoding="utf-8")
+    logging.info("Writing members data...")
+    pi.persist_accounts_from_all_dbs(query_acc, g)
+    logging.info("Done!")
+    g.close()
 
     pi.stop_server()
-
-    members_file = os.path.join(os.getcwd(), "..\\res\\Members.txt")
-    write_member_data(members_file, accounts)
-
-    posts_file = os.path.join(os.getcwd(), "..\\res\\Posts.txt")
-    write_posts_data(posts_file, posts)
 
 

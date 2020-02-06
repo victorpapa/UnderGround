@@ -169,6 +169,7 @@ def stem_post(post):
 # input: post as a list of tokens
 # output: dictionary containing all n-grams and the occurences
 def get_n_grams(post, n):
+    post = post.split()
     ret = {}
 
     index = 0
@@ -193,6 +194,7 @@ def get_n_grams(post, n):
 # input: post as a list of tokens
 # returns a dictionary mapping each word to the number of occurences
 def get_bow(post):
+    post = post.split()
     ret = {}
 
     for w in post:
@@ -217,7 +219,7 @@ def get_dist(vec1, vec2):
     ret = 0
 
     if len(vec1) != len(vec2):
-        print("Vector dimensions not matching! Exiting ...")
+        print("Vector dimensions " + str(len(vec1)) + " " + str(len(vec2)) + " not matching! Exiting ...")
         exit()
 
     for i in range(len(vec1)):
