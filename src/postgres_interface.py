@@ -119,6 +119,9 @@ class postgres_interface:
             # the LastVisitedDue field of the Member objects and use it to query the Data object on the set of active
             # users.
 
+            #TODO Every object in the database has a "LastParse" column, so using the first date encountered as a reference
+            # may be very wrong. Wait for Ben to reply to the e-mail
+
             for row in output:
 
                 acc_ID   = row[0].strip()

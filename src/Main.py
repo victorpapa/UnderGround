@@ -43,7 +43,7 @@ def get_similar_usernames_and_dbs(active_users, max_dist):
             db1 = active_users[i].Database
             db2 = active_users[j].Database
 
-            if db1 < db2:
+            if db1 > db2:
                 db3 = db1
                 db1 = db2
                 db2 = db3
@@ -96,7 +96,7 @@ def create_nodes_table_csv(csv_file_handler, members):
 def write_dict_to_file(dict_to_write, file_name):
     g = open(file_name, "w+", encoding="utf-8")
     for k in dict_to_write:
-        g.write(str(k) + ": " + str(dicto_to_write(k)))
+        g.write(str(k) + ": " + str(dict_to_write[k]) + "\n")
     g.close()
 
 # this method creates a Data object containing all the Members in names_path
@@ -139,6 +139,8 @@ def create_members_df(names_path):
 # returns a list of post objects full of posts written by user
 def get_posts_from(user, psql_interface):
 
+    #TODO I see that in psql the posts returned contain + signs in between the lines, is that the case here too?
+    #TODO posts contain many links, will have to do some input sanitisation and only analyse the actuals words
     posts = []
     raw_posts = pi.get_posts_from(user.IdMember, user.Database)
 
@@ -240,7 +242,6 @@ if __name__ == "__main__":
 
     similar_dbs_file = "..\\res\\similar_dbs.txt"
     write_dict_to_file(similar_dbs_dict, similar_dbs_file)
-    similar_dbs_file.write(similar_usernames_dict)
 
     edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
     nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")

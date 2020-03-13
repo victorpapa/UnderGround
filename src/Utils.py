@@ -63,7 +63,7 @@ def get_00_time_from(s):
     (h, m, s) = s[0].split(":")
     h = int(h)
     m = int(m)
-    s = int(float(s)) # because of cases such as example 2, where millisecondss are also present
+    s = int(float(s)) # because of cases such as example 2, where milliseconds are also present
 
     h -= time_zone
 
