@@ -3,6 +3,20 @@ import nltk
 import math
 import re
 
+# returns true if date_n_time1 is later or equal to date_n_time2
+def is_later_than(date_n_time1, date_n_time2):
+    assert(len(date_n_time1) == 6 and len(date_n_time2) == 6)
+
+    for i in range(len(date_n_time1)):
+        if date_n_time1[i] < date_n_time2[i]:
+            return False
+        
+        if date_n_time1[i] > date_n_time2[i]:
+            return True
+
+    return True
+
+
 # input: tuple: (years, months, days, hours, minutes, seconds)
 # return true if tuple is at least (including) "days" days long
 # return false otherwise
@@ -39,7 +53,7 @@ def get_date_from(s):
     # db_name example: crimeBB_2018-07-03_mpgh
     s = re.split("[_-]", s)
     for i in range(len(s)):
-        if is_int(s[i]):
+        if is_int(s[i]) and is_int(s[i+1]) and is_int(s[i+2]):
             return (int(s[i]), int(s[i+1]), int(s[i+2]))
 
     print("Couldn't extract date from " + res + ".")
@@ -78,17 +92,21 @@ def get_00_time_from(s):
     
     return (d, (h, m, s))
 
-# input: date1: (years, months, days, hours, minutes, seconds)
-# input: date2: (years, months, days, hours, minutes, seconds)
+# input: date_n_time1: (years, months, days, hours, minutes, seconds)
+# input: date_n_time2: (years, months, days, hours, minutes, seconds)
 # returns the time diff with the same format as above
 # TODO test this
-def get_time_diff(date1, date2):
-    s = date1[5] - date2[5]
-    m = date1[4] - date2[4]
-    h = date1[3] - date2[3]
-    d = date1[2] - date2[2]
-    mo = date1[1] - date2[1]
-    y = date1[0] - date2[0]
+def get_time_diff(date_n_time1, date_n_time2):
+
+    if not is_later_than(date_n_time1, date_n_time2):
+        return (0, 0, 0, 0, 0, 0)
+
+    s = date_n_time1[5] - date_n_time2[5]
+    m = date_n_time1[4] - date_n_time2[4]
+    h = date_n_time1[3] - date_n_time2[3]
+    d = date_n_time1[2] - date_n_time2[2]
+    mo = date_n_time1[1] - date_n_time2[1]
+    y = date_n_time1[0] - date_n_time2[0]
 
     if s < 0:
         s += 60

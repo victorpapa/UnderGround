@@ -228,7 +228,7 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
 if __name__ == "__main__":
 
     os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\src")
-    logging.basicConfig(filename='log.txt',level=logging.DEBUG)
+    logging.basicConfig(filename='log.txt', level=logging.DEBUG)
 
     # Create a csv containing a node table and an edge table for all the users described in names_path
 
@@ -237,12 +237,14 @@ if __name__ == "__main__":
     active_users = df.get_active_users() # list of Member objects
     logging.debug("The total number of active members is " + str(len(active_users)) + ".")
     (similar_usernames_tuples, similar_dbs_dict) = get_similar_usernames_and_dbs(active_users, 0)
-    # sorts dictionary by 
+    # sorts dictionary by the 2nd component (index 1) of each item in descending order
     similar_dbs_dict = {k: v for k, v in sorted(similar_dbs_dict.items(), key=lambda item: item[1], reverse=True)}
     similar_usernames_dict = tuples_to_dict(similar_usernames_tuples)
 
     similar_dbs_file = "..\\res\\similar_dbs.txt"
     write_dict_to_file(similar_dbs_dict, similar_dbs_file)
+
+    exit()
 
     edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
     nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
