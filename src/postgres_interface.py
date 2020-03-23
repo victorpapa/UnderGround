@@ -26,6 +26,8 @@ class postgres_interface:
     def start_server(self):
         subprocess.call("pg_ctl.exe -D \"W:\crimebb\" start")
         self.conn = psycopg2.connect(host="localhost", database="postgres", user="postgres", password="postgrespass12345")
+        # see https://stackoverflow.com/questions/34484066/create-a-postgres-database-using-python
+        # this flag is used to enable the creation of databases (don't really know why it's needed)
         self.conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
 
     def init_database_from_resource(self, res_name, reset):
@@ -94,7 +96,7 @@ class postgres_interface:
         for res in self.db_names:
             self.init_database_from_resource(res, reset)
 
-    # returns a list of accounts from all the databases
+    # persists a list of accounts from all the databases to the members_file
     # an account is a tuple (ID, Username, Database, TimeSinceLastLogIn)
     def persist_accounts_from_all_dbs(self, query_acc, members_file_handle):
 
@@ -102,6 +104,7 @@ class postgres_interface:
         
         for db_name in self.db_names:
             self.conn.close()
+            #TODO consider reading the password from a file stored on the encrypted hard drive
             self.conn = psycopg2.connect(host="localhost", database=db_name, user="postgres", password="postgrespass12345")
             logging.info("Connected to " + db_name + ".")
 

@@ -1,4 +1,4 @@
-from QueryData import Data
+from Data import Data
 from Post import Post
 from Member import Member
 from postgres_interface import postgres_interface
@@ -74,6 +74,7 @@ def get_similar_usernames_and_dbs(active_users, max_dist):
 
 # Creates a csv file containing an edge table for building a graph
 # is not tested
+# to_write needs to be a list of 3-tuples
 def create_edge_table_csv(csv_file_handler, to_write):
     csv_writer = csv.writer(csv_file_handler, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     csv_writer.writerow(["Source", "Target", "Weight", "Type"])
