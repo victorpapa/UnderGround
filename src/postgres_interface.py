@@ -102,7 +102,7 @@ class postgres_interface:
     def persist_accounts_from_all_dbs(self, members_file_handle):
 
         self.id_member = 0
-        query_acc = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv, \"LastParse\"  FROM \"Member\" ORDER BY lv DESC LIMIT 1000;"
+        query_acc = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv, \"LastParse\"  FROM \"Member\" ORDER BY lv DESC;"
         
         for db_name in self.db_names:
             self.conn.close()

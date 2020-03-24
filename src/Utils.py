@@ -95,7 +95,6 @@ def get_00_time_from(s):
 # input: date_n_time1: (years, months, days, hours, minutes, seconds)
 # input: date_n_time2: (years, months, days, hours, minutes, seconds)
 # returns the time diff with the same format as above
-# TODO test this
 def get_time_diff(date_n_time1, date_n_time2):
 
     if not is_later_than(date_n_time1, date_n_time2):
@@ -163,7 +162,7 @@ def get_edit_distance(username1, username2):
 
 
 # input: post as a String
-# returns the list of words that make up the post
+# returns the list of words separated by whitespace that make up the post
 def get_tokens_from(post):
     ret = []
 
@@ -187,7 +186,6 @@ def stem_post(post):
 # input: post as a list of tokens
 # output: dictionary containing all n-grams and the occurences
 def get_n_grams(post, n):
-    post = post.split()
     ret = {}
 
     index = 0
@@ -212,7 +210,6 @@ def get_n_grams(post, n):
 # input: post as a list of tokens
 # returns a dictionary mapping each word to the number of occurences
 def get_bow(post):
-    post = post.split()
     ret = {}
 
     for w in post:
@@ -284,7 +281,7 @@ def normalise_feature_vector(features):
     for i in features:
         features[i] = features[i] / total
 
-# returns a dict that only contains the entries in to_be_shrunk whose keys are present in master
+# returns a dict that only contains the entries in to_be_shrunk whose keys are present in total
 def shrink_dict(to_be_shrunk, total):
 
     ret = {}
@@ -334,21 +331,19 @@ def get_conex_components_count(edges):
 
     return total
 
-# edges is an edge table for a weighted graph, e.g. source -> (target, weight)
+# edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
 # performs a dfs and returns the current conex component
-# TODO test
 def get_current_cluster(node, edges, visited, cluster):
 
     cluster += [node]
     visited[node] = True
 
-    for (n, _) in edges[node]:
+    for (n, w) in edges[node]:
         if not visited[n]:
             get_current_cluster(n, edges, visited, cluster)
 
 # given a dictionary representing an undirected graph, obtain the list of conex components
-# edges is an edge table for a weighted graph, e.g. source -> (target, weight)
-# TODO test
+# edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
 def get_clusters(edges):
 
     total = []

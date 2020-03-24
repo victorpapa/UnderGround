@@ -109,7 +109,7 @@ def create_members_df(names_path):
         l = l.split()
 
         if len(l) < 4:
-            logging.warning("Skipped " + str(l) + ", invalid Member object format. (probably whitespace username)")
+            # logging.warning("Skipped " + str(l) + ", invalid Member object format. (probably whitespace username)")
             continue
 
         IdMember = int(l[0])
@@ -154,51 +154,48 @@ def get_posts_from(user, psql_interface):
 
     return posts
 
+# Returns a tuple. See details below
 # aggregates all the vectors representing the posts written by IdMember, and returns
 # the centre of mass of those vectors (if presence is False)
+# also returns a dictionary, mapping ecah post written by this user to its corresponding feature vector
 # df is a reference to a Data object
 # feature is a String, which is the type of feature we want to analyse (BoW, N-grams etc.)
 # n is for n-grams
 # presence is for whether we want feeature presence or not
-# TODO potentially make a function that returns a similar mapping, but which also maps each post to the vectors
-# this function does the opposite, it aggregates all the posts and returns the overall feature vector
+# TODO not tested yet
 def get_features_dict_written_by(user, psql_interface, feature, presence, n):
 
-    ret = {}
+    ret_aggregate = {}
+    ret_per_post = {}
     IdMember = user.IdMember
     posts = get_posts_from(user, psql_interface)
 
     if len(posts) == 0:
-        # print("User " + str(user.IdMember) + " from " + user.Database + " has not written any posts.")
-        return {}
+        logging.info("User " + str(user.IdMember) + " from " + user.Database + " has not written any posts.")
+        return {}, {}
 
     for p in posts:
 
-        # TODO collapse this code and use the method below (get_features_dict_for_post)
-        text = p.Content
+        curr_post_feat_dict = get_features_dict_for_post(post = post, feature = feature, presence = presence, n = n)
 
-        if feature == "bow":
-            feat_dict = get_bow(text)
-        elif feature == "n_grams":
-            if n == 1: 
-                logging.error("Did you forget to set n when querying n_grams?")
-            feat_dict = get_n_grams(text, n)
-        else:
-            logging.critical("Feature type " + feature + " not implemented.")
-
-        for f in feat_dict:
+        for f in curr_post_feat_dict:
             if f in ret:
-                ret[f] += feat_dict[f]
+                ret_aggregate[f] += curr_post_feat_dict[f]
             else:
-                ret[f] = feat_dict[f]
+                ret_aggregate[f] = curr_post_feat_dict[f]
+
+        ret_per_post[p] = curr_post_feat_dict
 
     if presence == True:
-        ret = freq_to_pres(ret)
-    else:
-        for i in ret:
-            ret[i] /= len(posts)
+        ret_aggregate = freq_to_pres(ret_aggregate)
 
-    return ret
+        for p in ret_per_post:
+            ret_per_post[p] = freq_to_pres(ret_per_post[p])
+    else:
+        for i in ret_aggregate:
+            ret_aggregate[i] /= len(posts)
+
+    return ret_aggregate, ret_per_post
 
 # returns the dictionary of features for the given post
 def get_features_dict_for_post(post, feature, presence, n = 1):
@@ -224,12 +221,10 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
 
     return ret
 
-
-if __name__ == "__main__":
-
-    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\src")
-    logging.basicConfig(filename='log.txt', level=logging.DEBUG)
-
+# creates 2 csv files: one containing all the edges in the similarity graph
+#                      one containing all the nodes in the similarity graph
+# returns the similarity graph edges as a dictionary
+def create_edges_and_nodes_csvs():
     # Create a csv containing a node table and an edge table for all the users described in names_path
 
     names_path = os.path.join(os.getcwd(), "..\\res\\Members.txt")
@@ -244,8 +239,6 @@ if __name__ == "__main__":
     similar_dbs_file = "..\\res\\similar_dbs.txt"
     write_dict_to_file(similar_dbs_dict, similar_dbs_file)
 
-    exit()
-
     edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
     nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
     create_edge_table_csv(edges_csv_file, similar_usernames_tuples)
@@ -256,6 +249,10 @@ if __name__ == "__main__":
     conex_components_count = get_conex_components_count(similar_usernames_dict)
     logging.debug("The number of conex components is " + str(conex_components_count) + ".")
 
+    return similar_usernames_dict
+
+# given the similarity graph edges as a dictionary, return the connected components
+def get_clusters(similar_usernames_dict):
     centroids = []
     features = {}
     feat_type = "bow"
@@ -277,6 +274,19 @@ if __name__ == "__main__":
 
         clusters += [cluster]
 
+    return clusters
+
+# just some required initialisation steps
+def init_env():
+    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\src")
+    logging.basicConfig(filename='log.txt', level=logging.DEBUG)
+
+if __name__ == "__main__":
+
+    init_env()
+    similar_usernames_dict = create_edges_and_nodes_csvs()
+    clusters = get_clusters(similar_usernames_dict)
+
     for i in range(len(clusters)):
         
         cluster = clusters[i]
@@ -287,83 +297,90 @@ if __name__ == "__main__":
             logging.debug(str(u.IdMember) + " " + str(u.Database))
         logging.debug("\n")
 
-        user_dicts = {}
+        user_aggr_dicts = {}
+        user_per_post_dicts = {}
 
         for j in range(len(cluster)):
             user = cluster[j]
-            d = get_features_dict_written_by(user = user, 
-                                             psql_interface = pi, 
-                                             feature = feat_type, 
-                                             presence = use_presence,
-                                             n = n)
+            user_aggr_feat_dict, user_per_post_feat_dict = get_features_dict_written_by(user = user, 
+                                                                                        psql_interface = pi, 
+                                                                                        feature = feat_type, 
+                                                                                        presence = use_presence,
+                                                                                        n = n)
 
-            if d != {}:
-                user_dicts[user] = d
+            if user_aggr_feat_dict != {}:
+                user_aggr_dicts[user] = user_aggr_feat_dict
+                user_per_post_dicts[user] = user_per_post_feat_dict
 
         suspects = {}
 
-        if len(user_dicts) <= 1:
-            # print("There are not enough users with posts in the cluster.")
-            if len(user_dicts) == 1:
-                for user in user_dicts:
+        if len(user_aggr_dicts) <= 1:
+            # logging.info("There are not enough users with posts in the cluster.")
+            if len(user_aggr_dicts) == 1:
+                for user in user_aggr_dicts:
                     suspects.update({user:user})
             # for suspect in suspects:
-                # print(suspect.Username + " " + suspect.Database + " -----> " + suspects[suspect].Username + " " + suspect.Database)
+                # logging.info(suspect.Username + " " + suspect.Database + " -----> " + suspects[suspect].Username + " " + suspect.Database)
             continue
 
         # Aggregate all the keys to get the dimensions
         aggregated_keys = set()
 
-        for user in user_dicts:
-            vector = user_dicts[user]
+        for user in user_aggr_dicts:
+            vector = user_aggr_dicts[user]
             
             for k in vector:
                 aggregated_keys.add(k)
 
         # Fill all the vectors to contain all the dimensions
-        for user in user_dicts:
+        for user in user_aggr_dicts:
             # And also normalise them if presence isn't used, distribution is more important
             if not use_presence:
-                normalise_feature_vector(user_dicts[user])
+                normalise_feature_vector(user_aggr_dicts[user])
 
-            fill_feature_dict(user_dicts[user], aggregated_keys)
+            fill_feature_dict(user_aggr_dicts[user], aggregated_keys)
 
         # iterate through users, and assign each of their posts to one of the other users
         # the most chosen user will be suspected to be the same user as the one we are analysing
 
-        for user in user_dicts:
-            posts = get_posts_from(user=user, psql_interface=pi)
+        for source_user in user_per_post_dicts:
+            # curr_user_posts_dicts is a dictionary that maps a user to a dictionary, which maps each post
+            # written by source_user to its feature vector
+            curr_user_posts_dicts = user_per_post_dicts[source_user]
             labels = {}
 
-            for p in posts:
-                p_dict = get_features_dict_for_post(post = p, 
-                                                    feature = feat_type, 
-                                                    presence = use_presence,
-                                                    n = n)
+            for p in curr_user_posts_dicts:
+                # curr_post_dict is a dictionary, which maps each post
+                # written by the source_user to its feature vector
+                curr_post_dict = curr_user_posts_dicts[p]
                                                     
                 fill_feature_dict(p_dict, aggregated_keys)
 
                 min_dist = -1
-                for other in user_dicts:
-                    if other == user:
+                for target_user in user_aggr_dicts:
+                    if target_user == source_user:
+                        # we want a different user
                         continue
                     
+                    #------# TODO this whole block needs to become just 
+                    # dict = get_dist(curr_post_dict, user_aggr_dicts)
                     v1 = []
                     v2 = []
-                    for k in p_dict:
-                        v1 += [p_dict[k]]
+                    for k in curr_post_dict:
+                        v1 += [curr_post_dict[k]]
                         #TODO This try block shouldn't be here. After fixing the issue, remove it
                         try:
-                            v2 += [user_dicts[other][k]]
+                            v2 += [user_aggr_dicts[target_user][k]]
                         except:
                             v2 += [0]
                             logging.warning("Couldn't find this key " + str(k) + ".")
 
                     dist = get_dist(v1, v2)
+                    #------#
 
                     if min_dist == -1 or dist < min_dist:
                         min_dist = dist
-                        user_label = other
+                        user_label = target_user
 
                 if user_label in labels:
                     labels[user_label] += 1
@@ -377,11 +394,12 @@ if __name__ == "__main__":
                     maximum = labels[user_label]
                     closest_user = user_label
 
-            suspects.update({user:closest_user})
+            suspects.update({source_user:closest_user})
 
         for suspect in suspects:
-            logging.debug(suspect.Username + " " + suspect.Database + " -----> " + suspects[suspect].Username + " " + suspects[suspect].Database)
-        # cc = get_conex_components_count(suspects)
+            logging.info(suspect.Username + " " + suspect.Database + " -----> " + suspects[suspect].Username + " " + suspects[suspect].Database)
+        cc = get_conex_components_count(suspects)
+        logging.info("This cluster thus forms " + str(cc) + " subclusters of suspects.")
 
     pi.stop_server()
 
