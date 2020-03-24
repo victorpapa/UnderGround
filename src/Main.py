@@ -57,7 +57,7 @@ def get_similar_usernames_and_dbs(active_users, max_dist):
                     dist = 1
 
             if dist <= max_dist:
-                # TODO make sure this gets changed when needed
+                # change between usernames and IDs when needed
                 # similar_usernames += [(u1, u2, dist)]
                 # similar_usernames += [(u2, u1, dist)]
                 similar_usernames += [(id1, id2, dist)]
@@ -252,7 +252,7 @@ def create_edges_and_nodes_csvs():
     return similar_usernames_dict
 
 # given the similarity graph edges as a dictionary, return the connected components
-def get_clusters(similar_usernames_dict):
+def get_user_clusters(similar_usernames_dict):
     centroids = []
     features = {}
     feat_type = "bow"
@@ -261,20 +261,19 @@ def get_clusters(similar_usernames_dict):
     pi.start_server()
     n = 1
 
-    # Obtain the clusters
-    # TODO test this
+    # Obtain the user clusters from the id clusters
     
     id_clusters = get_clusters(similar_usernames_dict)
 
-    clusters = []
+    user_clusters = []
     for id_cluster in id_clusters:
-        cluster = []
+        user_cluster = []
         for idc in id_cluster:
-            cluster += [df.get_user_by_id(idc)]
+            user_cluster += [df.get_user_by_id(idc)]
 
-        clusters += [cluster]
+        user_clusters += [user_cluster]
 
-    return clusters
+    return user_clusters
 
 # just some required initialisation steps
 def init_env():
