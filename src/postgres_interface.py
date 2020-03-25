@@ -99,10 +99,14 @@ class postgres_interface:
 
     # persists a list of accounts from all the databases to the members_file
     # an account is a tuple (ID, Username, Database, TimeSinceLastLogIn)
-    def persist_accounts_from_all_dbs(self, members_file_handle):
+    # TODO double check that all the changes haven't introduced any bugs
+    def persist_accounts_from_all_dbs(self, members_file_root):
 
         self.id_member = 0
-        query_acc = "SELECT \"IdMember\", \"Username\", \"LastVisitDue\" as lv, \"LastParse\"  FROM \"Member\" ORDER BY lv DESC;"
+        query_acc = "SELECT \"IdMember\", \"Username\" as uname, \"LastVisitDue\", \"LastParse\" FROM \"Member\" ORDER BY uname ASC;"
+
+        # set this to True whenever you want accounts with the same username to be considered different accounts
+        same_username_diff_account = False   
         
         for db_name in self.db_names:
             self.conn.close()
@@ -116,7 +120,12 @@ class postgres_interface:
                 logging.critical("Command failed to run.")
                 exit()
 
-            acc_aux = []
+            acc_list = []
+            if same_username_diff_account:
+                username_list = []
+            else:
+                username_set = set()
+
             ref_date = "None"
 
             # when getting the Member.txt data, instead of fetching the real LastVisitedDue values, retrieve only
@@ -172,22 +181,31 @@ class postgres_interface:
                 if acc_name == "NONE":
                     continue
 
-                # If the same username was found in this database, ignore the current one
-                ok = True
-                for (_, n, _, _) in acc_aux:
-                    if n == acc_name:
-                        ok = False
+                if not same_username_diff_account:
+
+                    # If the same username was found in this database, ignore the current one
+                    if acc_name not in username_set:
+                        username_set.add(acc_name)
+
+                        # how long has this user been inactive for? (time since last log in)
+                        elapsed_time = get_time_diff(last_parse_date, last_visit_date)
+                        # add this member to the list of members
+                        acc_list += [(acc_ID, acc_name, db_name, elapsed_time)]
+                    else:
                         # TODO can't log usernames that have non-ascii characters
                         logging.warning("Ignored " + str(acc_name.encode("utf-8")) + ". Already seen in this database: " + db_name)
-                        break
+                else:
+                    username_list += [acc_name]
 
-                if ok == True:
                     # how long has this user been inactive for? (time since last log in)
                     elapsed_time = get_time_diff(last_parse_date, last_visit_date)
                     # add this member to the list of members
-                    acc_aux += [(acc_ID, acc_name, db_name, elapsed_time)]
-                                         
-            self.write_member_data(members_file_handle, acc_aux)
+                    acc_list += [(acc_ID, acc_name, db_name, elapsed_time)]
+
+            members_file_name = members_file_root + "-" + db_name + ".txt"
+            members_file_handle = open(members_file_name, "w+", encoding="utf-8")
+            self.write_member_data(members_file_handle, acc_list)
+            members_file_handle.close()
 
     # returns a lit of all the posts written by acc_ID
     def get_posts_from(self, acc_ID, db_name):
@@ -232,7 +250,8 @@ class postgres_interface:
             to_write += str(self.id_member) + " "
             l = len(account) - 1
             for f in account[1:l]:
-                # TODO some usernames contain whitespaces, remove them or not?
+                # TODO some usernames contain whitespaces, remove them (the whitespaces) or not?
+                # currently removing them
                 to_write += f.replace(" ", "") + " "
             f = str(account[l])
             to_write += f.replace(" ", "") + "\n"
@@ -242,19 +261,17 @@ class postgres_interface:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(filename='log.txt', filemode="w", level=logging.DEBUG)
+    logging.basicConfig(filename='log_psql_interface.txt', filemode="w", level=logging.DEBUG)
     pi = postgres_interface()
     pi.start_server()
     
     # ONLY USE WHEN ADDING NEW DATABASES (careful not to set reset to True and wipe everything for no reason)
     pi.init_dbs(reset = False)
    
-    members_file = os.path.join(os.getcwd(), "..\\res\\Members.txt")
-    g = open(members_file, "w+", encoding="utf-8")
+    members_file_root = os.path.join(os.getcwd(), "..\\res\\Members\\Members")
     logging.info("Writing members data...")
-    pi.persist_accounts_from_all_dbs(g)
+    pi.persist_accounts_from_all_dbs(members_file_root)
     logging.info("Done!")
-    g.close()
 
     pi.stop_server()
 

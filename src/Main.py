@@ -101,39 +101,59 @@ def write_dict_to_file(dict_to_write, file_name):
     g.close()
 
 # this method creates a Data object containing all the Members in names_path
-def create_members_df(names_path):
-    f = open(names_path, "r", encoding="utf-8")
+def create_members_df(members_folder, limit):
+    members_files_names = os.listdir(members_folder)
+    file_count = len(members_files_names)
+    # make sure to use int division to get an integer limit
+    limit //= file_count # limit is now the per-file limit, instead of the overall limit
+    orig_path = os.getcwd()
+    os.chdir(members_folder)
+    total = 0
     df = Data()
 
-    for l in f:
-        l = l.split()
+    for member_file_name in members_files_names:
 
-        if len(l) < 4:
-            # logging.warning("Skipped " + str(l) + ", invalid Member object format. (probably whitespace username)")
-            continue
+        f = open(member_file_name, "r", encoding="utf-8")
+        curr_file_member_count = 0
 
-        IdMember = int(l[0])
-        Username = l[1]
-        index = 2
+        for l in f:
+            l = l.split()
 
-        while "crimebb" not in l[index].lower():
-            Username += " " + l[index]
-            index += 1
-
-        Database = l[index]
-        aux = re.split("[(,)]", l[index + 1])
-        LastVisitDue = ()
-        for x in aux:
-            if x == "":
+            if len(l) < 4:
+                # logging.warning("Skipped " + str(l) + ", invalid Member object format. (probably whitespace username)")
                 continue
-            LastVisitDue += (int(x),)
 
-        m = Member(IdMember = IdMember, Username=Username, Database=Database, LastVisitDue=LastVisitDue)
-        df.add_member(m)
+            IdMember = int(l[0])
 
-            
-    total = IdMember + 1 # because we index from 0
-    logging.debug("The total number of members is " + str(total) + ".")
+            Username = l[1]
+            index = 2
+
+            while "crimebb" not in l[index].lower():
+                Username += " " + l[index]
+                index += 1
+
+            Database = l[index]
+            aux = re.split("[(,)]", l[index + 1])
+            LastVisitDue = ()
+            for x in aux:
+                if x == "":
+                    continue
+                LastVisitDue += (int(x),)
+
+            #TODO shouldn't LastVisitDue be called "TimeSinceLastVisit" ?
+            m = Member(IdMember = IdMember, Username=Username, Database=Database, LastVisitDue=LastVisitDue)
+            df.add_member(m)
+            curr_file_member_count += 1
+
+            if curr_file_member_count == limit:
+                break
+
+        f.close()
+
+    logging.debug("The total number of members is " + str(df.get_user_count()) + ".")
+
+    # restore path (go back to src/)
+    os.chdir(orig_path)
 
     return df
 
@@ -224,11 +244,11 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
 # creates 2 csv files: one containing all the edges in the similarity graph
 #                      one containing all the nodes in the similarity graph
 # returns the similarity graph edges as a dictionary
-def create_edges_and_nodes_csvs():
+def create_edges_and_nodes_csvs(limit):
     # Create a csv containing a node table and an edge table for all the users described in names_path
 
-    names_path = os.path.join(os.getcwd(), "..\\res\\Members.txt")
-    df = create_members_df(names_path)
+    members_folder = os.path.join(os.getcwd(), "..\\res\\Members\\")
+    df = create_members_df(members_folder, limit = limit)
     active_users = df.get_active_users() # list of Member objects
     logging.debug("The total number of active members is " + str(len(active_users)) + ".")
     (similar_usernames_tuples, similar_dbs_dict) = get_similar_usernames_and_dbs(active_users, 0)
@@ -278,13 +298,19 @@ def get_user_clusters(similar_usernames_dict):
 # just some required initialisation steps
 def init_env():
     os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\src")
-    logging.basicConfig(filename='log.txt', level=logging.DEBUG)
+    logging.basicConfig(filename='log_main.txt', filemode="w", level=logging.DEBUG)
 
 if __name__ == "__main__":
 
     init_env()
-    similar_usernames_dict = create_edges_and_nodes_csvs()
+    # TODO instead of getting the first <limit> users, get the first <limit / number of databases> users
+    # in order to get the most recent ones from all of them
+
+    # TODO another sol which is even better is to sort the alphabetically and get the first few from each database
+    similar_usernames_dict = create_edges_and_nodes_csvs(limit = 100000)
     clusters = get_clusters(similar_usernames_dict)
+
+    exit()
 
     for i in range(len(clusters)):
         
