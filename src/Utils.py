@@ -305,18 +305,25 @@ def tuples_to_dict(tuples):
 
     return ret
 
-# edges is an edge table for a weighted graph, e.g. source -> (target, weight)
+# edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
+#                  or for an unweighted graph, e.g. source -> target
 # performs a dfs and keeps track of visited nodes
 def visit(node, edges, visited):
 
     visited[node] = True
 
-    for (n, _) in edges[node]:
+    for neighbor in edges[node]:
+        if isinstance(neighbor, tuple):
+            n = neighbor[0]
+        else:
+            n = neighbor
+
         if not visited[n]:
             visit(n, edges, visited)
 
 # given a dictionary representing an undirected graph, obtain the number of conex components
-# edges is an edge table for a weighted graph, e.g. source -> (target, weight)
+# edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
+#                  or for an unweighted graph, e.g. source -> target
 def get_conex_components_count(edges):
 
     total = 0
@@ -332,18 +339,25 @@ def get_conex_components_count(edges):
     return total
 
 # edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
+#                  or for an unweighted graph, e.g. source -> target
 # performs a dfs and returns the current conex component
 def get_current_cluster(node, edges, visited, cluster):
 
     cluster += [node]
     visited[node] = True
 
-    for (n, w) in edges[node]:
+    for neighbor in edges[node]:
+        if isinstance(neighbor, tuple):
+            n = neighbor[0]
+        else:
+            n = neighbor
+
         if not visited[n]:
             get_current_cluster(n, edges, visited, cluster)
 
 # given a dictionary representing an undirected graph, obtain the list of conex components
 # edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
+#                  or for an unweighted graph, e.g. source -> target
 def get_clusters(edges):
 
     total = []
