@@ -3,17 +3,19 @@ import subprocess
 import psycopg2
 import logging
 from datetime import datetime
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT, AsIs
+from psycopg2.sql import Identifier, SQL
 from Utils import get_time_diff, get_00_time_from, get_date_from, is_int
 
 class postgres_interface:
     
+    # TODO create Timestamp indexes on all Post tables
     def __init__(self):
         self.psql_dumps_folder = "W:\\psql_dumps\\"
         self.db_names = self.__get_list_of_resources()
-        self.query_posts_template = "SELECT \"Timestamp\", \"Author\", \"Content\" FROM \"Post\" WHERE \"Author\" = "
-        self.query_members_w_posts_template = "SELECT \"Author\" FROM \"Post\" WHERE \"Author\" = "
-        self.query_members = "SELECT \"IdMember\", \"Username\" as uname, \"LastVisitDue\", \"LastParse\" FROM \"Member\" ORDER BY uname ASC LIMIT 1000;"
+        self.query_posts_template = "SELECT \"Timestamp\", \"Author\", \"Content\" FROM \"Post\" WHERE \"Author\" = %s;"
+        self.query_members_w_posts_template = "SELECT \"Author\" FROM \"Post\" WHERE \"Author\" = %s;"
+        self.query_members = "SELECT \"IdMember\", \"Username\" as uname, \"LastVisitDue\", \"LastParse\" FROM \"Member\" ORDER BY uname ASC LIMIT 10000;"
 
 
     def __get_list_of_resources(self):
@@ -44,13 +46,13 @@ class postgres_interface:
         # Use when you want to reset the database
         if reset == True:
             try:
-                self.run_command("DROP DATABASE \"" + db_name + "\";")
+                self.run_command(SQL("DROP DATABASE {};").format(Identifier(db_name)))
             except:
                 pass
         
         try:
             # Create the database
-            self.run_command("CREATE DATABASE \"" + db_name + "\";")
+            self.run_command(SQL("CREATE DATABASE {};").format(Identifier(db_name)))
         except psycopg2.errors.DuplicateDatabase as e:
             logging.debug(datetime.now().strftime("%H:%M:%S") + " " +  str(e))
             # Database already existent, exit method
@@ -66,12 +68,13 @@ class postgres_interface:
         os.chdir(curr_folder)
 
     # returns a list of strings, each string represting a line that was members_output while running the command
-    def run_command(self, cmd, silent = False):
+    # TODO review the sql.SQL, sql.Identifier, AsIs stuff. Seems to work now
+    def run_command(self, cmd, args = (), silent = False):
         if silent == False:
-            logging.info(datetime.now().strftime("%H:%M:%S") + " " +  "Running " + cmd)
+            logging.info(datetime.now().strftime("%H:%M:%S") + " " +  "Running " + str(cmd) % args)
 
         cur = self.conn.cursor()
-        cur.execute(cmd)
+        cur.execute(cmd, args)
         try:
             members_output = cur.fetchall()
         except psycopg2.ProgrammingError as e:
@@ -102,14 +105,14 @@ class postgres_interface:
         for res in self.db_names:
             self.init_database_from_resource(res, reset)
 
-    # persists a list of accounts from all the databases to the members_file
-    # an account is a tuple (ID, Username, Database, TimeSinceLastLogIn)
-    def persist_accounts_from_all_dbs(self, members_file_root):
+    # persists a list of members from all the databases to the members_file
+    # a member is a tuple (ID, Username, Database, TimeSinceLastLogIn)
+    def persist_members_from_all_dbs(self, members_file_root):
 
         self.id_member = 0
         
-        # set this to True whenever you want accounts with the same username to be considered different accounts
-        same_username_diff_account = True   
+        # set this to True whenever you want members with the same username to be considered different members
+        same_username_diff_member = True   
         
         for db_name in self.db_names:
             self.conn.close()
@@ -120,11 +123,11 @@ class postgres_interface:
             try:
                 members_output = self.run_command(self.query_members)
             except:
-                logging.critical(datetime.now().strftime("%H:%M:%S") + " " +  "Command failed to run.")
+                logging.critical(datetime.now().strftime("%H:%M:%S") + " " +  "Command " + self.query_members + " failed to run.")
                 exit()
 
-            acc_list = []
-            if same_username_diff_account:
+            member_list = []
+            if same_username_diff_member:
                 username_list = []
             else:
                 username_set = set()
@@ -143,12 +146,11 @@ class postgres_interface:
             for row in members_output:
 
                 member_ID   = row[0].strip()
-                query_curr_post = self.query_members_w_posts_template + str(member_ID) + " LIMIT 1;"
+                args = (AsIs(str(member_ID) + " LIMIT 1"),)
                 try:
-                    posts_output = self.run_command(query_curr_post, silent = True)
+                    posts_output = self.run_command(self.query_members_w_posts_template, args, silent = True)
                 except:
-                    # TODO add the query to all critical logs
-                    logging.critical(datetime.now().strftime("%H:%M:%S") + " " +  "Command " + query_curr_post + " failed.")
+                    logging.critical(datetime.now().strftime("%H:%M:%S") + " " +  "Command " + self.query_members_w_posts_template % args + " failed.")
                     exit()
 
                 if len(posts_output) == 0:
@@ -156,7 +158,7 @@ class postgres_interface:
                     continue
 
 
-                acc_name = row[1].strip()
+                member_name = row[1].strip()
                 last_visit = row[2].strip().split() # this should now be a list containing info about the last login date and time
                                                     # the first element is the date
                                                     # the second element is the time of that day
@@ -195,48 +197,46 @@ class postgres_interface:
                 for x in last_parse_time:
                     last_parse_date += (x,) # we want date to contain 6 numbers: year, month, day, hour, minute, second    
 
-                if acc_name == "NONE":
+                if member_name == "NONE":
                     continue
 
-                if not same_username_diff_account:
+                if not same_username_diff_member:
 
                     # If the same username was found in this database, ignore the current one
-                    if acc_name not in username_set:
-                        username_set.add(acc_name)
+                    if member_name not in username_set:
+                        username_set.add(member_name)
 
                         # how long has this user been inactive for? (time since last log in)
                         elapsed_time = get_time_diff(last_parse_date, last_visit_date)
                         # add this member to the list of members
-                        acc_list += [(member_ID, acc_name, db_name, elapsed_time)]
+                        member_list += [(member_ID, member_name, db_name, elapsed_time)]
                     else:
                         # TODO can't log usernames that have non-ascii characters
                         # see https://www.psycopg.org/docs/usage.html Unicode handling
-                        logging.warning(datetime.now().strftime("%H:%M:%S") + " " +  "Ignored " + str(acc_name.encode("utf-8")) + ". Already seen in this database: " + db_name)
+                        logging.warning(datetime.now().strftime("%H:%M:%S") + " " +  "Ignored " + str(member_name.encode("utf-8")) + ". Already seen in this database: " + db_name)
                 else:
-                    username_list += [acc_name]
+                    username_list += [member_name]
 
                     # how long has this user been inactive for? (time since last log in)
                     elapsed_time = get_time_diff(last_parse_date, last_visit_date)
                     # add this member to the list of members
-                    acc_list += [(member_ID, acc_name, db_name, elapsed_time)]
+                    member_list += [(member_ID, member_name, db_name, elapsed_time)]
 
             members_file_name = members_file_root + "-" + db_name + ".txt"
             members_file_handle = open(members_file_name, "w+", encoding="utf-8")
-            self.write_member_data(members_file_handle, acc_list)
+            self.write_member_data(members_file_handle, member_list)
             members_file_handle.close()
 
-    # TODO WARNING NEVER NEVER NEVER  https://www.psycopg.org/docs/usage.html
     # returns a lit of all the posts written by member_ID
     def get_posts_from(self, member_ID, db_name):
         # now, obtain all the posts written by this user on this website
         self.conn = psycopg2.connect(host="localhost", database=db_name, user="postgres", password="postgrespass12345")
 
-        query_curr_post = self.query_posts_template + str(member_ID) + " ORDER BY \"IdPost\" DESC LIMIT 1;"
+        args = (AsIs(str(member_ID) + " ORDER BY \"Timestamp\" DESC LIMIT 10"),)
 
         try:
-            posts_output = self.run_command(query_curr_post, silent = True)
+            posts_output = self.run_command(self.query_posts_template, args, silent = True)
         except:
-            # TODO add the query to all critical logs
             logging.critical(datetime.now().strftime("%H:%M:%S") + " " +  "Command " + query_curr_post + " failed.")
             exit()
 
@@ -254,19 +254,19 @@ class postgres_interface:
         return ret
 
 
-    # writes the data about the members in the "accounts" list
+    # writes the data about the members in the "members" list
     # the list contains tuples that represent (ID, Username, Database, TimeSinceLastLogIn)
-    def write_member_data(self, g, accounts):
+    def write_member_data(self, g, members):
 
-        for account in accounts:
+        for member in members:
             to_write = ""
             to_write += str(self.id_member) + " "
-            l = len(account) - 1
-            for f in account[1:l]:
+            l = len(member) - 1
+            for f in member[1:l]:
                 # TODO some usernames contain whitespaces, remove them (the whitespaces) or not?
                 # currently removing them
                 to_write += f.replace(" ", "") + " "
-            f = str(account[l])
+            f = str(member[l])
             to_write += f.replace(" ", "") + "\n"
 
             self.id_member += 1
@@ -283,10 +283,9 @@ if __name__ == "__main__":
    
     members_file_root = os.path.join(os.getcwd(), "..\\res\\Members\\Members")
     logging.info(datetime.now().strftime("%H:%M:%S") + " " +  "Writing members data...")
-    pi.persist_accounts_from_all_dbs(members_file_root)
+    pi.persist_members_from_all_dbs(members_file_root)
     logging.info(datetime.now().strftime("%H:%M:%S") + " " +  "Done!")
 
-    # TODO uncomment this
-    # pi.stop_server()
+    pi.stop_server()
 
 

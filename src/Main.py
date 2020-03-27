@@ -141,7 +141,6 @@ def create_members_df(members_folder, limit):
                     continue
                 LastVisitDue += (int(x),)
 
-            #TODO shouldn't LastVisitDue be called "TimeSinceLastVisit" ?
             m = Member(IdMember = IdMember, Username=Username, Database=Database, LastVisitDue=LastVisitDue)
             df.add_member(m)
             curr_file_member_count += 1
@@ -194,13 +193,6 @@ def get_features_dict_written_by(user, psql_interface, feature, presence, n):
     ret_per_post = {}
     IdMember = user.IdMember
     posts = get_posts_from(user, psql_interface)
-
-    # TODO delete this if once postgres_interface only outputs members that have written posts
-    # TODO replace every acc with member
-    # TODO replace every member_ID with ID_member
-    if len(posts) == 0:
-        logging.info(datetime.now().strftime("%H:%M:%S") + " " +  "User " + str(user.IdMember) + " from " + user.Database + " has not written any posts.")
-        return {}, {}
 
     for post in posts:
 
@@ -443,8 +435,7 @@ if __name__ == "__main__":
     # TODO after solving all minor TODOs, check that get_suspects_intuitively works
     get_suspects_intutitively(clusters)
 
-    # TODO uncomment this
-    # pi.stop_server()
+    pi.stop_server()
 
 
 
