@@ -2,6 +2,15 @@ import csv
 import nltk
 import math
 import re
+from datetime import datetime
+
+# prepends the current time to a string, should be used for logging purposes
+def timestamped(string):
+    if isinstance(string, str):
+        return datetime.now().strftime("%H:%M:%S") + " " + string
+    
+    print(str(string) + " is not a string.")
+    return datetime.now().strftime("%H:%M:%S") + " " + str(string)
 
 # returns true if date_n_time1 is later or equal to date_n_time2
 def is_later_than(date_n_time1, date_n_time2):

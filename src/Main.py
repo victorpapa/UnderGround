@@ -1,13 +1,15 @@
 from Data import Data
 from Post import Post
 from Member import Member
-from postgres_interface import postgres_interface
-from Utils import get_edit_distance, get_bow, get_n_grams, freq_to_pres, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, get_dict_values, normalise_feature_vector, get_dist, get_conex_components_count, get_clusters
+from Postgres_interface import Postgres_interface
+from Utils import get_edit_distance, get_bow, get_n_grams, freq_to_pres, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, get_dict_values, normalise_feature_vector, get_dist, get_conex_components_count, get_clusters, timestamped
 from datetime import datetime
 import os
 import csv
 import re
 import logging
+from sklearn.cluster import KMeans
+from matplotlib import pyplot as plt
 
 # initially, similar_usernames contains low scores for similar usernames, 
 # and high scores for different usernames. This function reverts this behavior.
@@ -28,21 +30,25 @@ def revert_weights(similar_usernames):
 # given a list of Member objects, this method will return triplets (a, b, x), where x is <= max_dist,
 # where a and b are usernames (Strings) or IDs (Integers), and x is the reversed edit distance between them
 # see the function reverse_weights() for the definition of reversed edit distance
-def get_similar_usernames_and_dbs(active_users, max_dist):
+def get_similar_usernames_and_dbs(active_members, max_dist):
 
+    similar_usernames_global = []
     similar_usernames = []
     similar_dbs = {}
 
-    for i in range(len(active_users) - 1):
-        for j in range(i+1, len(active_users)):
-            u1 = active_users[i].Username
-            u2 = active_users[j].Username
+    for i in range(len(active_members) - 1):
+        for j in range(i+1, len(active_members)):
+            u1 = active_members[i].Username
+            u2 = active_members[j].Username
 
-            id1 = active_users[i].IdMember
-            id2 = active_users[j].IdMember
+            global_id1 = active_members[i].GlobalId
+            global_id2 = active_members[j].GlobalId
 
-            db1 = active_users[i].Database
-            db2 = active_users[j].Database
+            id1 = active_members[i].IdMember
+            id2 = active_members[j].IdMember
+
+            db1 = active_members[i].Database
+            db2 = active_members[j].Database
 
             if db1 > db2:
                 db3 = db1
@@ -61,6 +67,9 @@ def get_similar_usernames_and_dbs(active_users, max_dist):
                 # change between usernames and IDs when needed
                 # similar_usernames += [(u1, u2, dist)]
                 # similar_usernames += [(u2, u1, dist)]
+                similar_usernames_global += [(global_id1, global_id2, dist)]
+                similar_usernames_global += [(global_id2, global_id1, dist)]
+
                 similar_usernames += [(id1, id2, dist)]
                 similar_usernames += [(id2, id1, dist)]
 
@@ -70,8 +79,9 @@ def get_similar_usernames_and_dbs(active_users, max_dist):
                     similar_dbs[(db1, db2)] = 1
                     
     similar_usernames = revert_weights(similar_usernames)
+    similar_usernames_global = revert_weights(similar_usernames_global)
 
-    return (similar_usernames, similar_dbs)
+    return (similar_usernames_global, similar_usernames, similar_dbs)
 
 # Creates a csv file containing an edge table for building a graph
 # is not tested
@@ -120,14 +130,15 @@ def create_members_df(members_folder, limit):
         for l in f:
             l = l.split()
 
-            if len(l) < 4:
-                # logging.warning(datetime.now().strftime("%H:%M:%S") + " " +  "Skipped " + str(l) + ", invalid Member object format. (probably whitespace username)")
+            if len(l) < 5:
+                # logging.warning(timestamped("Skipped " + str(l) + ", invalid Member object format. (probably whitespace username)"))
                 continue
 
-            IdMember = int(l[0])
+            GlobalId = int(l[0])
+            IdMember = int(l[1])
 
-            Username = l[1]
-            index = 2
+            Username = l[2]
+            index = 3
 
             while "crimebb" not in l[index].lower():
                 Username += " " + l[index]
@@ -141,58 +152,40 @@ def create_members_df(members_folder, limit):
                     continue
                 LastVisitDue += (int(x),)
 
-            m = Member(IdMember = IdMember, Username=Username, Database=Database, LastVisitDue=LastVisitDue)
+            m = Member(GlobalId = GlobalId, IdMember = IdMember, Username=Username, Database=Database, LastVisitDue=LastVisitDue)
             df.add_member(m)
             curr_file_member_count += 1
 
-            if curr_file_member_count == limit:
+            if limit != 0 and curr_file_member_count == limit:
                 break
 
         f.close()
 
-    logging.debug(datetime.now().strftime("%H:%M:%S") + " " +  "The total number of members is " + str(df.get_user_count()) + ".")
+    logging.debug(timestamped("The total number of members is " + str(df.get_member_count()) + "."))
 
     # restore path (go back to src/)
     os.chdir(orig_path)
 
     return df
 
-# returns a list of post objects full of posts written by user
-def get_posts_from(user, psql_interface):
-
-    #TODO I see that in psql the posts returned contain + signs in between the lines, is that the case here too?
-    #TODO posts contain many links, will have to do some input sanitisation and only analyse the actuals words
-    posts = []
-    raw_posts = pi.get_posts_from(user.IdMember, user.Database)
-
-    for raw_post in raw_posts:
-        post_ID = raw_post[0]
-        author_ID = raw_post[1]
-        content = raw_post[2]
-
-        posts += [Post(IdPost=post_ID, Author=author_ID, Content=content)]
-
-    return posts
-
 # Returns a tuple. See details below
 # aggregates all the vectors representing the posts written by IdMember, and 
 
 # ---------------------------------------------------------
 # returns the centre of mass of those vectors (if presence is False)
-# also returns a dictionary, mapping ecah post written by this user to its corresponding feature vector
+# also returns a dictionary, mapping ecah post written by this member to its corresponding feature vector
 # ---------------------------------------------------------
 
 # df is a reference to a Data object
 # feature is a String, which is the type of feature we want to analyse (BoW, N-grams etc.)
 # n is for n-grams
 # presence is for whether we want feeature presence or not
-# TODO not tested yet
-def get_features_dict_written_by(user, psql_interface, feature, presence, n):
+def get_features_dict_written_by(member, psql_interface, feature, presence, n):
 
     ret_aggregate = {}
     ret_per_post = {}
-    IdMember = user.IdMember
-    posts = get_posts_from(user, psql_interface)
+
+    posts = psql_interface.get_posts_from(member)
 
     for post in posts:
 
@@ -223,15 +216,17 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
     ret = {}
 
     text = post.Content
+    # have to provide a list of tokens to the get_bow and get_n_grams methods
+    text = text.split()
 
     if feature == "bow":
         feat_dict = get_bow(text)
     elif feature == "n_grams":
         if n == 1: 
-            logging.error(datetime.now().strftime("%H:%M:%S") + " " +  "Did you forget to set n when querying n_grams?")
+            logging.error(timestamped("Did you forget to set n when querying n_grams?"))
         feat_dict = get_n_grams(text, n)
     else:
-        logging.critical(datetime.now().strftime("%H:%M:%S") + " " +  "Feature type " + feature + " not implemented.")
+        logging.critical(timestamped("Feature type " + feature + " not implemented."))
 
     
     ret.update(feat_dict)
@@ -244,198 +239,270 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
 # creates 2 csv files: one containing all the edges in the similarity graph
 #                      one containing all the nodes in the similarity graph
 # returns the similarity graph edges as a dictionary
-def create_edges_and_nodes_csvs(limit):
-    # Create a csv containing a node table and an edge table for all the users described in names_path
+def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface):
+    # Create a csv containing a node table and an edge table for all the members described in names_path
 
-    members_folder = os.path.join(os.getcwd(), "..\\res\\Members - Copy\\")
+    members_folder = os.path.join(os.getcwd(), "..\\res\\Members\\")
     df = create_members_df(members_folder, limit = limit)
-    active_users = df.get_active_users() # list of Member objects
-    logging.debug(datetime.now().strftime("%H:%M:%S") + " " +  "The total number of active members is " + str(len(active_users)) + ".")
-    (similar_usernames_tuples, similar_dbs_dict) = get_similar_usernames_and_dbs(active_users, 0)
+    active_members = df.get_active_members() # list of Member objects
+    logging.debug(timestamped("The total number of active members is " + str(len(active_members)) + "."))
+
+    if active_post_avg == True:
+        max_posts = 0
+        active_post_avg = 0
+        for active_member in active_members:
+            # TODO should I store posts in Data or not?
+            active_member_posts = psql_interface.get_posts_from(member = active_member)
+            if len(active_member_posts) == 0:
+                print(str(active_member.Username) + " " + active_member.Database)
+            active_post_avg += len(active_member_posts)
+            if len(active_member_posts) > max_posts:
+                max_posts = len(active_member_posts)
+        active_post_avg /= len(active_members)
+        logging.debug(timestamped("The average number of posts for the active users is " + str(active_post_avg)))
+        logging.debug(timestamped("The maximum number of posts for the active users is " + str(max_posts)))
+
+    exit()
+    (similar_usernames_global_tuples, similar_usernames_tuples, similar_dbs_dict) = get_similar_usernames_and_dbs(active_members, max_dist = 0)
     # sorts dictionary by the 2nd component (index 1) of each item in descending order
     similar_dbs_dict = {k: v for k, v in sorted(similar_dbs_dict.items(), key=lambda item: item[1], reverse=True)}
+    similar_usernames_dict_global = tuples_to_dict(similar_usernames_tuples_global)
     similar_usernames_dict = tuples_to_dict(similar_usernames_tuples)
 
     similar_dbs_file = "..\\res\\similar_dbs.txt"
     write_dict_to_file(similar_dbs_dict, similar_dbs_file)
 
-    edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
-    nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
-    create_edge_table_csv(edges_csv_file, similar_usernames_tuples)
-    create_nodes_table_csv(nodes_csv_file, active_users)
-    edges_csv_file.close()
-    nodes_csv_file.close()
+    if write_csv == True:
+        edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
+        nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
+        create_edge_table_csv(edges_csv_file, similar_usernames_tuples)
+        create_nodes_table_csv(nodes_csv_file, active_members)
+        edges_csv_file.close()
+        nodes_csv_file.close()
 
-    conex_components_count = get_conex_components_count(similar_usernames_dict)
-    logging.debug(datetime.now().strftime("%H:%M:%S") + " " +  "The number of conex components is " + str(conex_components_count) + ".")
+    conex_components_count = get_conex_components_count(similar_usernames_dict_global)
+    logging.debug(timestamped("The number of conex components is " + str(conex_components_count) + "."))
 
     return similar_usernames_dict, df
 
 # given the similarity graph edges as a dictionary, return the connected components
-def get_user_clusters(similar_usernames_dict, df):
+# TODO added global ids to fix the ID issue, check that it works properly
+# TODO also, maybe consider passing member objects arround everywhere to avoid this issue? why have I not done this yet? Check every method that takes something that is not a member object and try to change it
+def get_member_clusters(similar_usernames_dict, df):
 
-    # Obtain the user clusters from the id clusters
+    # Obtain the member clusters from the id clusters
     
     id_clusters = get_clusters(similar_usernames_dict)
 
-    user_clusters = []
+    member_clusters = []
     for id_cluster in id_clusters:
-        user_cluster = []
+        member_cluster = []
         for idc in id_cluster:
-            user_cluster += [df.get_user_by_id(idc)]
+            member_cluster += [df.get_member_by_GlobalId(idc)]
 
-        user_clusters += [user_cluster]
+        member_clusters += [member_cluster]
 
-    return user_clusters
+    return member_clusters
 
-# just some required initialisation steps
+# initialising the logging file and setting the correct working directory
 def init_env():
-    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\src")
+    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\res")
     logging.basicConfig(filename='log_main.txt', filemode="w", level=logging.DEBUG)
+    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\src")
+
+def get_member_dicts_from_cluster(cluster):
+
+    # Obtain the vector for each member
+
+    logging.debug(timestamped("The members are:"))
+    for u in cluster:
+        logging.debug(timestamped(str(u.IdMember) + " " + str(u.Database)))
+
+    member_aggr_dicts = {}
+    member_per_post_dicts = {}
+
+    for i in range(len(cluster)):
+        member = cluster[i]
+        member_aggr_feat_dict, member_per_post_feat_dict = get_features_dict_written_by(member = member, 
+                                                                                    psql_interface = pi, 
+                                                                                    feature = feat_type, 
+                                                                                    presence = use_presence,
+                                                                                    n = n)
+
+        if member_aggr_feat_dict != {}: # member_per_post_feat_dict follows naturally
+            member_aggr_dicts[member] = member_aggr_feat_dict
+            member_per_post_dicts[member] = member_per_post_feat_dict
+
+    # Aggregate all the keys to get the dimensions
+    aggregated_keys = set()
+
+    for member in member_aggr_dicts:
+        vector = member_aggr_dicts[member]
+        
+        for k in vector:
+            aggregated_keys.add(k)
+
+    # Fill all the vectors to contain all the dimensions
+    for member in member_aggr_dicts:
+        # And also normalise them if presence isn't used, distribution is more important
+        if not use_presence:
+            normalise_feature_vector(member_aggr_dicts[member])
+
+        fill_feature_dict(member_aggr_dicts[member], aggregated_keys)
+        curr_member_posts_dicts = member_per_post_dicts[member]
+
+        for p in curr_member_posts_dicts:
+            if not use_presence:
+                normalise_feature_vector(curr_member_posts_dicts[p])
+                                                
+            fill_feature_dict(curr_member_posts_dicts[p], aggregated_keys)
+
+    return member_aggr_dicts, member_per_post_dicts
 
 def get_suspects_intutitively(clusters):
-    for i in range(len(clusters)):
+    for cluster in clusters:
         
-        cluster = clusters[i]
-        # Obtain the vector for each user
-
-        logging.debug(datetime.now().strftime("%H:%M:%S") + " " +  "The users are:")
-        for u in cluster:
-            logging.debug(datetime.now().strftime("%H:%M:%S") + " " +  str(u.IdMember) + " " + str(u.Database))
-
-        user_aggr_dicts = {}
-        user_per_post_dicts = {}
-
-        for j in range(len(cluster)):
-            user = cluster[j]
-            user_aggr_feat_dict, user_per_post_feat_dict = get_features_dict_written_by(user = user, 
-                                                                                        psql_interface = pi, 
-                                                                                        feature = feat_type, 
-                                                                                        presence = use_presence,
-                                                                                        n = n)
-
-            if user_aggr_feat_dict != {}: #user_per_post_feat_dict follows naturally
-                user_aggr_dicts[user] = user_aggr_feat_dict
-                user_per_post_dicts[user] = user_per_post_feat_dict
+        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster)
 
         suspects = {}
 
-        if len(user_aggr_dicts) <= 1:
-            # logging.info(datetime.now().strftime("%H:%M:%S") + " " +  "There are not enough users with posts in the cluster.")
-            if len(user_aggr_dicts) == 1:
-                for user in user_aggr_dicts:
-                    suspects.update({user:[user]})
+        # iterate through members, and assign each of their posts to one of the other members
+        # the most chosen member will be suspected to be the same member as the one we are analysing
 
-            # for suspect in suspects:
-                # logging.info(datetime.now().strftime("%H:%M:%S") + " " +  suspect.Username + " " + suspect.Database + " -----> " + suspects[suspect].Username + " " + suspect.Database)
-            continue
-
-        # Aggregate all the keys to get the dimensions
-        aggregated_keys = set()
-
-        for user in user_aggr_dicts:
-            vector = user_aggr_dicts[user]
-            
-            for k in vector:
-                aggregated_keys.add(k)
-
-        # Fill all the vectors to contain all the dimensions
-        for user in user_aggr_dicts:
-            # And also normalise them if presence isn't used, distribution is more important
-            if not use_presence:
-                normalise_feature_vector(user_aggr_dicts[user])
-
-            fill_feature_dict(user_aggr_dicts[user], aggregated_keys)
-
-        # iterate through users, and assign each of their posts to one of the other users
-        # the most chosen user will be suspected to be the same user as the one we are analysing
-
-        for source_user in user_per_post_dicts:
-            # curr_user_posts_dicts is a dictionary that maps a user to a dictionary, which maps each post
-            # written by source_user to its feature vector
-            curr_user_posts_dicts = user_per_post_dicts[source_user]
+        for source_member in member_per_post_dicts:
+            # curr_member_posts_dicts is a dictionary that maps a member to a dictionary, which maps each post
+            # written by source_member to its feature vector
+            curr_member_posts_dicts = member_per_post_dicts[source_member]
             labels = {}
 
-            for p in curr_user_posts_dicts:
+            for p in curr_member_posts_dicts:
                 # curr_post_dict is a dictionary, which maps each post
-                # written by the source_user to its feature vector
-                curr_post_dict = curr_user_posts_dicts[p]
-                                                    
-                fill_feature_dict(curr_post_dict, aggregated_keys)
+                # written by the source_member to its feature vector
+                
+                curr_post_dict = curr_member_posts_dicts[p]
 
                 min_dist = -1
-                for target_user in user_aggr_dicts:
-                    if target_user == source_user:
-                        # we want a different user
+                for target_member in member_aggr_dicts:
+                    if target_member == source_member:
+                        # we want a different member
                         continue
                     
                     #------# TODO this whole block needs to become just 
-                    # dict = get_dist(curr_post_dict, user_aggr_dicts[target_user])
+                    # dict = get_dist(curr_post_dict, member_aggr_dicts[target_member])
                     v1 = []
                     v2 = []
                     for k in curr_post_dict:
                         v1 += [curr_post_dict[k]]
                         #TODO This try block shouldn't be here. After fixing the issue, remove it
                         try:
-                            v2 += [user_aggr_dicts[target_user][k]]
+                            v2 += [member_aggr_dicts[target_member][k]]
                         except:
                             v2 += [0]
-                            logging.warning(datetime.now().strftime("%H:%M:%S") + " " +  "Couldn't find this key " + str(k) + ".")
+                            logging.warning(timestamped("Couldn't find this key " + str(k) + "."))
 
                     dist = get_dist(v1, v2)
                     #------#
 
                     if min_dist == -1 or dist < min_dist:
                         min_dist = dist
-                        user_label = target_user
+                        member_label = target_member
 
-                if user_label in labels:
-                    labels[user_label] += 1
+                if member_label in labels:
+                    labels[member_label] += 1
                 else:
-                    labels[user_label] = 1
+                    labels[member_label] = 1
         
             maximum = -1
             
-            for user_label in labels:
-                if maximum == -1 or labels[user_label] > maximum:
-                    maximum = labels[user_label]
-                    closest_user = user_label
+            for member_label in labels:
+                if maximum == -1 or labels[member_label] > maximum:
+                    maximum = labels[member_label]
+                    closest_member = member_label
 
-            suspects.update({source_user:[closest_user]})
+            suspects.update({source_member:[closest_member]})
 
         # suspects is a dict, mapping Member objects to lists of Member objects, each list having 1 item
         for suspect in suspects:
-            logging.info(datetime.now().strftime("%H:%M:%S") + " " +  suspect.Username + " " + suspect.Database + " -----> " + suspects[suspect][0].Username + " " + suspects[suspect][0].Database)
+            logging.info(timestamped(suspect.Username + " " + suspect.Database + " -----> " + suspects[suspect][0].Username + " " + suspects[suspect][0].Database))
         cc = get_conex_components_count(suspects)
-        logging.info(datetime.now().strftime("%H:%M:%S") + " " +  "This cluster thus forms " + str(cc) + " subclusters of suspects.")
+        logging.info(timestamped("This cluster thus forms " + str(cc) + " subclusters of suspects."))
+
+def get_suspects_k_means(clusters):
+    
+    for cluster in clusters:
+
+        if len(cluster) > 2:
+
+            # member_aggr_dicts is not used in this method
+            member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster)
+
+            feature_matrix = []
+            for member in member_per_post_dicts:
+                for post in member_per_post_dicts[member]:
+                    feature_matrix.append(member_per_post_dicts[member][post])
+
+            print(feature_matrix)
+
+            # have to sort the features in order to be able to properly analyse them,
+            # as we'll only keep the feature values, the keys will be forgotten, 
+            # as they are not needed by the clusterer/classifier
+            aggr_keys = sorted(get_dict_keys(feature_matrix[0]))
+
+            feature_matrix = [[member_dict[aggr_key] for aggr_key in aggr_keys] for member_dict in feature_matrix]
+
+            suspect_count = len(feature_matrix)
+
+        
+            wcss = []
+
+            for i in range(1, suspect_count + 1):
+                k_means = KMeans(n_clusters = i, 
+                                init = "k-means++",    
+                                max_iter = 300,
+                                n_init = 10,
+                                random_state = 0)
+                k_means.fit(feature_matrix)
+                wcss.append(k_means.inertia_)
+            
+            plt.plot(range(1, suspect_count + 1), wcss)
+            plt.title('Elbow Method')
+            plt.xlabel('Number of clusters')
+            plt.ylabel('WCSS')
+            plt.show()
 
 if __name__ == "__main__":
 
     init_env()
 
+    # TODO some of these variables can be seen by the get_suspects methods. Do some tests and see how scopes work
     centroids = []
     features = {}
     feat_type = "bow"
     use_presence = False
     n = 1
     
-    pi = postgres_interface()
+    pi = Postgres_interface()
     pi.start_server()
 
-    # instead of getting the first <limit> users, get the first <limit / number of databases> users
+    # instead of getting the first <limit> members, get the first <limit / number of databases> members
     # in order to get the most recent ones from all of them
 
-    # another sol which is even better, and is implemented in this code (postgres_interface.py),
+    # another sol which is even better, and is implemented in this code (Postgres_interface.py),
     # is to sort them alphabetically and get the first few from each database
-    similar_usernames_dict, df = create_edges_and_nodes_csvs(limit = 10000)
-    clusters = get_user_clusters(similar_usernames_dict = similar_usernames_dict, df = df)
+    similar_usernames_dict, df = retrieve_similarity_graph(limit = 1000, 
+                                                           write_csv = False,
+                                                           active_post_avg = True, 
+                                                           psql_interface = pi)
+    # clusters will be a list of lists of Member objects
+    clusters = get_member_clusters(similar_usernames_dict = similar_usernames_dict, df = df)
 
     # ---------------------------
 
-    # TODO after solving all minor TODOs, check that get_suspects_intuitively works
     get_suspects_intutitively(clusters)
+    # get_suspects_k_means(clusters)
 
-    pi.stop_server()
+    # TODO
+    # pi.stop_server()
 
 
 
