@@ -2,7 +2,7 @@ from Data import Data
 from Post import Post
 from Member import Member
 from Postgres_interface import Postgres_interface
-from Utils import get_edit_distance, get_bow, get_n_grams, freq_to_pres, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, get_dict_values, normalise_feature_vector, get_dist, get_conex_components_count, get_clusters, timestamped
+from Utils import get_edit_distance, get_bow, get_n_grams, freq_to_pres, shrink_dict, fill_feature_dict, tuples_to_dict, get_dict_keys, get_dict_values, normalise_feature_vector, get_dist, get_connected_components_count, get_strongly_connected_components_count, get_connected_components, timestamped
 from datetime import datetime
 import os
 import csv
@@ -11,8 +11,8 @@ import logging
 from sklearn.cluster import KMeans
 from matplotlib import pyplot as plt
 
-# initially, similar_usernames contains low scores for similar usernames, 
-# and high scores for different usernames. This function reverts this behavior.
+# initially, similar_usernames contains 3-tuples with low scores for similar usernames, 
+# and high scores for more different, but still similar usernames. This function reverses this behavior.
 def revert_weights(similar_usernames):
 
     maximum = 0
@@ -33,7 +33,6 @@ def revert_weights(similar_usernames):
 def get_similar_usernames_and_dbs(active_members, max_dist):
 
     similar_usernames_global = []
-    similar_usernames = []
     similar_dbs = {}
 
     for i in range(len(active_members) - 1):
@@ -44,12 +43,12 @@ def get_similar_usernames_and_dbs(active_members, max_dist):
             global_id1 = active_members[i].GlobalId
             global_id2 = active_members[j].GlobalId
 
-            id1 = active_members[i].IdMember
-            id2 = active_members[j].IdMember
-
             db1 = active_members[i].Database
             db2 = active_members[j].Database
 
+            # sorting them to make sure I can keep track of the number of pairs of users with identical
+            # usernames per pair of similar databases
+            # for ex, I don't want hack-forums -> mpgh to be diff from mpgh -> hack-forums
             if db1 > db2:
                 db3 = db1
                 db1 = db2
@@ -70,18 +69,14 @@ def get_similar_usernames_and_dbs(active_members, max_dist):
                 similar_usernames_global += [(global_id1, global_id2, dist)]
                 similar_usernames_global += [(global_id2, global_id1, dist)]
 
-                similar_usernames += [(id1, id2, dist)]
-                similar_usernames += [(id2, id1, dist)]
-
                 if (db1, db2) in similar_dbs:
                     similar_dbs[(db1, db2)] += 1
                 else:
                     similar_dbs[(db1, db2)] = 1
                     
-    similar_usernames = revert_weights(similar_usernames)
     similar_usernames_global = revert_weights(similar_usernames_global)
 
-    return (similar_usernames_global, similar_usernames, similar_dbs)
+    return (similar_usernames_global, similar_dbs)
 
 # Creates a csv file containing an edge table for building a graph
 # is not tested
@@ -253,8 +248,11 @@ def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface)
         for active_member in active_members:
             # TODO should I store posts in Data or not?
             active_member_posts = psql_interface.get_posts_from(member = active_member)
+
+            # TODO remove this after you see absolutely no output in the terminal
             if len(active_member_posts) == 0:
                 print(str(active_member.Username) + " " + active_member.Database)
+
             active_post_avg += len(active_member_posts)
             if len(active_member_posts) > max_posts:
                 max_posts = len(active_member_posts)
@@ -262,38 +260,37 @@ def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface)
         logging.debug(timestamped("The average number of posts for the active users is " + str(active_post_avg)))
         logging.debug(timestamped("The maximum number of posts for the active users is " + str(max_posts)))
 
-    exit()
-    (similar_usernames_global_tuples, similar_usernames_tuples, similar_dbs_dict) = get_similar_usernames_and_dbs(active_members, max_dist = 0)
-    # sorts dictionary by the 2nd component (index 1) of each item in descending order
-    similar_dbs_dict = {k: v for k, v in sorted(similar_dbs_dict.items(), key=lambda item: item[1], reverse=True)}
-    similar_usernames_dict_global = tuples_to_dict(similar_usernames_tuples_global)
-    similar_usernames_dict = tuples_to_dict(similar_usernames_tuples)
-
-    similar_dbs_file = "..\\res\\similar_dbs.txt"
-    write_dict_to_file(similar_dbs_dict, similar_dbs_file)
+    similar_usernames_tuples_global, similar_dbs_dict = get_similar_usernames_and_dbs(active_members, max_dist = 0)
 
     if write_csv == True:
+
+        # sorts dictionary by the 2nd component (index 1) of each item in descending order
+        similar_dbs_dict = {k: v for k, v in sorted(similar_dbs_dict.items(), key=lambda item: item[1], reverse=True)}
+
+        similar_dbs_file = "..\\res\\similar_dbs.txt"
+        write_dict_to_file(similar_dbs_dict, similar_dbs_file)
+
         edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
         nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
-        create_edge_table_csv(edges_csv_file, similar_usernames_tuples)
+        create_edge_table_csv(edges_csv_file, similar_usernames_tuples_global)
         create_nodes_table_csv(nodes_csv_file, active_members)
         edges_csv_file.close()
         nodes_csv_file.close()
 
-    conex_components_count = get_conex_components_count(similar_usernames_dict_global)
-    logging.debug(timestamped("The number of conex components is " + str(conex_components_count) + "."))
+    similar_usernames_dict_global = tuples_to_dict(similar_usernames_tuples_global)
+    connected_components_count = get_connected_components_count(similar_usernames_dict_global)
+    logging.debug(timestamped("The number of connected components is " + str(connected_components_count) + "."))
 
-    return similar_usernames_dict, df
+    return similar_usernames_dict_global, df
 
 # given the similarity graph edges as a dictionary, return the connected components
 # TODO added global ids to fix the ID issue, check that it works properly
-# TODO also, maybe consider passing member objects arround everywhere to avoid this issue? why have I not done this yet? Check every method that takes something that is not a member object and try to change it
 def get_member_clusters(similar_usernames_dict, df):
 
-    # Obtain the member clusters from the id clusters
-    
-    id_clusters = get_clusters(similar_usernames_dict)
+    # First obtain the global id clusters
+    id_clusters = get_connected_components(similar_usernames_dict)
 
+    # Obtain the member clusters from the id clusters
     member_clusters = []
     for id_cluster in id_clusters:
         member_cluster = []
@@ -424,8 +421,18 @@ def get_suspects_intutitively(clusters):
         # suspects is a dict, mapping Member objects to lists of Member objects, each list having 1 item
         for suspect in suspects:
             logging.info(timestamped(suspect.Username + " " + suspect.Database + " -----> " + suspects[suspect][0].Username + " " + suspects[suspect][0].Database))
-        cc = get_conex_components_count(suspects)
-        logging.info(timestamped("This cluster thus forms " + str(cc) + " subclusters of suspects."))
+        
+        # Here we want STRONGLY CONNECTED COMPONENTS
+        
+        #  o
+        #  ▲ 
+        #  | 
+        #  ▼                        o
+        #  o < - - - - - - - - - - /
+
+        # In this case, I want the program to output 2 components, rather than 1
+        cc = get_connected_components_count(suspects)
+        logging.info(timestamped("This cluster thus forms " + str(cc) + " strongly connected subclusters of suspects."))
 
 def get_suspects_k_means(clusters):
     
@@ -470,6 +477,7 @@ def get_suspects_k_means(clusters):
             plt.ylabel('WCSS')
             plt.show()
 
+# TODO do a big test, where you print and verify each and every step of all main
 if __name__ == "__main__":
 
     init_env()
@@ -489,7 +497,7 @@ if __name__ == "__main__":
 
     # another sol which is even better, and is implemented in this code (Postgres_interface.py),
     # is to sort them alphabetically and get the first few from each database
-    similar_usernames_dict, df = retrieve_similarity_graph(limit = 1000, 
+    similar_usernames_dict, df = retrieve_similarity_graph(limit = 10000, 
                                                            write_csv = False,
                                                            active_post_avg = True, 
                                                            psql_interface = pi)

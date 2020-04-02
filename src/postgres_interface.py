@@ -15,7 +15,7 @@ class Postgres_interface:
         self.db_names = self.__get_list_of_resources()
         self.query_posts_template = "SELECT \"Timestamp\", \"Author\", \"Content\" FROM \"Post\" WHERE \"Author\" = %s;"
         self.query_members_w_posts_template = "SELECT \"Author\" FROM \"Post\" WHERE \"Author\" = %s LIMIT 1;"
-        self.query_members = "SELECT \"IdMember\", \"Username\" as uname, \"LastVisitDue\", \"LastParse\" FROM \"Member\" ORDER BY uname ASC LIMIT 100;"
+        self.query_members = "SELECT \"IdMember\", \"Username\" as uname, \"LastVisitDue\", \"LastParse\" FROM \"Member\" ORDER BY uname ASC LIMIT 10000;"
         self.ERR_STRING = "Command above failed to execute. Exiting..."
 
     def __get_list_of_resources(self):

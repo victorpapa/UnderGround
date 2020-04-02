@@ -3,6 +3,7 @@ import nltk
 import math
 import re
 from datetime import datetime
+from collections import deque
 
 # prepends the current time to a string, should be used for logging purposes
 def timestamped(string):
@@ -322,52 +323,96 @@ def visit(node, edges, visited):
     visited[node] = True
 
     for neighbor in edges[node]:
-        if isinstance(neighbor, tuple):
-            n = neighbor[0]
-        else:
-            n = neighbor
+        n = neighbor[0]
 
         if not visited[n]:
             visit(n, edges, visited)
 
-# given a dictionary representing an undirected graph, obtain the number of conex components
+# given a dictionary representing an undirected graph, obtain the number of connected components
 # edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
 #                  or for an unweighted graph, e.g. source -> target
-def get_conex_components_count(edges):
+def get_connected_components_count(edges):
 
     total = 0
     visited = {}
-    for u in edges:
-        visited[u] = False
+    for node in edges:
+        visited[node] = False
 
-    for u in edges:
-        if not visited[u]:
-            visit(u, edges, visited)
+    for node in edges:
+        if not visited[node]:
+            visit(node, edges, visited)
             total += 1
 
     return total
 
+# visits nodes starting from u, and adds nodes to the stack in descending order of their finishing time
+def visit_stack(node, edges, visited, stack):
+    visited[node] = True
+
+    for neighbor in edges[node]:
+        neighbor = neighbor[0]
+
+        if not visited[neighbor]:
+            visit_stack(neighbor, edges, visited, stack)
+
+    stack.append(node)
+
+# given a dictionary representing an undirected graph, obtain the number of strongly connected components
 # edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
 #                  or for an unweighted graph, e.g. source -> target
-# performs a dfs and returns the current conex component
-def get_current_cluster(node, edges, visited, cluster):
+def get_strongly_connected_components_count(edges):
+
+    total = []
+    visited = {}
+    stack = deque()
+
+    for node in edges:
+        visited[node] = False
+
+    for node in edges:
+        if not visited[node]:
+            visit_stack(node, edges, visited, stack)
+
+    edges_transpose = {}
+    for node in edges:
+        for neighbor in edges[node]:
+            if neighbor[0] in edges_transpose:
+                edges_transpose[neighbor[0]] += [(node, neighbor[1])]
+            else:
+                edges_transpose[neighbor[0]] = [(node, neighbor[1])]
+
+    visited = {}
+    for node in edges:
+        visited[node] = False
+
+    while len(stack) > 0:
+        top_node = stack.pop()
+
+        if not visited[top_node]:
+            scc = []
+            get_current_connected_component(top_node, edges_transpose, visited, scc)
+            total += [scc]
+    
+    return len(total)
+
+# edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
+#                  or for an unweighted graph, e.g. source -> target
+# performs a dfs and returns the current connected component
+def get_current_connected_component(node, edges, visited, cluster):
 
     cluster += [node]
     visited[node] = True
 
     for neighbor in edges[node]:
-        if isinstance(neighbor, tuple):
-            n = neighbor[0]
-        else:
-            n = neighbor
+        n = neighbor[0]
 
         if not visited[n]:
-            get_current_cluster(n, edges, visited, cluster)
+            get_current_connected_component(n, edges, visited, cluster)
 
-# given a dictionary representing an undirected graph, obtain the list of conex components
+# given a dictionary representing an undirected graph, obtain the list of connected components
 # edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
 #                  or for an unweighted graph, e.g. source -> target
-def get_clusters(edges):
+def get_connected_components(edges):
 
     total = []
     visited = {}
@@ -377,7 +422,7 @@ def get_clusters(edges):
     for u in edges:
         if not visited[u]:
             cluster = []
-            get_current_cluster(u, edges, visited, cluster)
+            get_current_connected_component(u, edges, visited, cluster)
             total += [cluster]
 
     return total
