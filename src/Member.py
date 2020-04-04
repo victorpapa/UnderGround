@@ -31,16 +31,11 @@ class Member:
         self.FirstPostDate    = FirstPostDate # timestamp with time zone
         self.Database         = Database # I introduced this field to remember the origin of the member as the name of the db
 
-    # returns the number of days representing the elapsed time 
-    # since the member last logged in. The referece time is not the present, but the 
-    # time and date of the last recorded log in on the same website that we have in the database.
-
     def is_active(self):
         if is_longer_than(self.LastVisitDue, 30):
             return False
     
         return True
 
-    # returns the age of this account as (days, hours, minutes, seconds)
     def get_age(self):
-        return (0, 0, 0, 0)
+        return self.Age

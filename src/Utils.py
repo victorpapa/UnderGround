@@ -316,7 +316,6 @@ def tuples_to_dict(tuples):
     return ret
 
 # edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
-#                  or for an unweighted graph, e.g. source -> target
 # performs a dfs and keeps track of visited nodes
 def visit(node, edges, visited):
 
@@ -330,7 +329,6 @@ def visit(node, edges, visited):
 
 # given a dictionary representing an undirected graph, obtain the number of connected components
 # edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
-#                  or for an unweighted graph, e.g. source -> target
 def get_connected_components_count(edges):
 
     total = 0
@@ -346,20 +344,29 @@ def get_connected_components_count(edges):
     return total
 
 # visits nodes starting from u, and adds nodes to the stack in descending order of their finishing time
+# edges is an edge table for an unweighted graph, e.g. source -> [target, target, ...]
 def visit_stack(node, edges, visited, stack):
     visited[node] = True
 
     for neighbor in edges[node]:
-        neighbor = neighbor[0]
 
         if not visited[neighbor]:
             visit_stack(neighbor, edges, visited, stack)
 
     stack.append(node)
 
+# edges is an edge table for an unweighted graph, e.g. source -> [target target, ...]
+# performs a dfs and returns the current connected component
+def get_current_strongly_connected_component(node, edges, visited, scc):
+    scc += [node]
+    visited[node] = True
+
+    for neighbor in edges[node]:
+        if not visited[neighbor]:
+            get_current_strongly_connected_component(neighbor, edges, visited, scc)
+
 # given a dictionary representing an undirected graph, obtain the number of strongly connected components
-# edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
-#                  or for an unweighted graph, e.g. source -> target
+# edges is an edge table for an unweighted graph, e.g. source -> [target, target, ...]
 def get_strongly_connected_components_count(edges):
 
     total = []
@@ -375,11 +382,15 @@ def get_strongly_connected_components_count(edges):
 
     edges_transpose = {}
     for node in edges:
+        # TODO does this affect the functionality? add 2 more tests pls
+        if node not in edges_transpose:
+            edges_transpose[node] = []
+
         for neighbor in edges[node]:
-            if neighbor[0] in edges_transpose:
-                edges_transpose[neighbor[0]] += [(node, neighbor[1])]
+            if neighbor in edges_transpose:
+                edges_transpose[neighbor] += [node]
             else:
-                edges_transpose[neighbor[0]] = [(node, neighbor[1])]
+                edges_transpose[neighbor] = [node]
 
     visited = {}
     for node in edges:
@@ -390,13 +401,12 @@ def get_strongly_connected_components_count(edges):
 
         if not visited[top_node]:
             scc = []
-            get_current_connected_component(top_node, edges_transpose, visited, scc)
+            get_current_strongly_connected_component(top_node, edges_transpose, visited, scc)
             total += [scc]
     
     return len(total)
 
 # edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
-#                  or for an unweighted graph, e.g. source -> target
 # performs a dfs and returns the current connected component
 def get_current_connected_component(node, edges, visited, cluster):
 
@@ -411,7 +421,6 @@ def get_current_connected_component(node, edges, visited, cluster):
 
 # given a dictionary representing an undirected graph, obtain the list of connected components
 # edges is an edge table for a weighted graph, e.g. source -> [(target, weight), (target, weight), ...]
-#                  or for an unweighted graph, e.g. source -> target
 def get_connected_components(edges):
 
     total = []

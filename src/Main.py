@@ -234,13 +234,51 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
 # creates 2 csv files: one containing all the edges in the similarity graph
 #                      one containing all the nodes in the similarity graph
 # returns the similarity graph edges as a dictionary
+# TODO rename this and split it up into more methods
 def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface):
     # Create a csv containing a node table and an edge table for all the members described in names_path
 
-    members_folder = os.path.join(os.getcwd(), "..\\res\\Members\\")
+    # TODO do this for every join that needs it
+    members_folder = os.path.join(os.getcwd(), *["..", "res", "Members"])
     df = create_members_df(members_folder, limit = limit)
+    all_members = df.get_members()
     active_members = df.get_active_members() # list of Member objects
     logging.debug(timestamped("The total number of active members is " + str(len(active_members)) + "."))
+    # each one of the following two will be a list of metadata for a given set of members
+    # the metadata will hence be a list of lists, each containing one tuple with data about a member
+    # that is because __run_command returns a list of tuples, each tuple representing a row in the output
+    # of the command that was run by PSQL
+    all_members_metadata = psql_interface.get_members_metadata(all_members)
+    active_members_metadata = psql_interface.get_members_metadata(active_members)
+
+    # ---------------------------------------------------------------------- #
+
+    # TODO make this a method
+    metadata_file_name = os.path.join("..", *["res", "Members_metadata", "all_members_metadata.txt"])
+
+    metadata_file_handler = open(metadata_file_name, "w+", encoding = "utf-8")
+    for member_metadata in all_members_metadata:
+        for metadata in member_metadata:
+            for field in metadata:
+                metadata_file_handler.write(str(field) + " ")
+            metadata_file_handler.write("\n")
+    metadata_file_handler.close()
+    # TODO ensure there's no open left without corresponding close
+
+    # ----------------------------------------------------------------------#
+    
+    metadata_file_name = os.path.join("..", *["res", "Members_metadata", "active_members_metadata.txt"])
+    metadata_file_handler = open(metadata_file_name, "w+", encoding = "utf-8")
+    for member_metadata in active_members_metadata:
+        for metadata in member_metadata:
+            for field in metadata:
+                metadata_file_handler.write(str(field) + " ")
+            metadata_file_handler.write("\n")
+    metadata_file_handler.close()
+
+    logging.info(timestamped("Wrote the members metadata.\n"))
+
+    # ----------------------------------------------------------------------#
 
     if active_post_avg == True:
         max_posts = 0
@@ -248,10 +286,6 @@ def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface)
         for active_member in active_members:
             # TODO should I store posts in Data or not?
             active_member_posts = psql_interface.get_posts_from(member = active_member)
-
-            # TODO remove this after you see absolutely no output in the terminal
-            if len(active_member_posts) == 0:
-                print(str(active_member.Username) + " " + active_member.Database)
 
             active_post_avg += len(active_member_posts)
             if len(active_member_posts) > max_posts:
@@ -279,12 +313,11 @@ def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface)
 
     similar_usernames_dict_global = tuples_to_dict(similar_usernames_tuples_global)
     connected_components_count = get_connected_components_count(similar_usernames_dict_global)
-    logging.debug(timestamped("The number of connected components is " + str(connected_components_count) + "."))
+    logging.debug(timestamped("The number of connected components is " + str(connected_components_count) + ".\n"))
 
     return similar_usernames_dict_global, df
 
 # given the similarity graph edges as a dictionary, return the connected components
-# TODO added global ids to fix the ID issue, check that it works properly
 def get_member_clusters(similar_usernames_dict, df):
 
     # First obtain the global id clusters
@@ -326,9 +359,8 @@ def get_member_dicts_from_cluster(cluster):
                                                                                     presence = use_presence,
                                                                                     n = n)
 
-        if member_aggr_feat_dict != {}: # member_per_post_feat_dict follows naturally
-            member_aggr_dicts[member] = member_aggr_feat_dict
-            member_per_post_dicts[member] = member_per_post_feat_dict
+        member_aggr_dicts[member] = member_aggr_feat_dict
+        member_per_post_dicts[member] = member_per_post_feat_dict
 
     # Aggregate all the keys to get the dimensions
     aggregated_keys = set()
@@ -351,7 +383,9 @@ def get_member_dicts_from_cluster(cluster):
         for p in curr_member_posts_dicts:
             if not use_presence:
                 normalise_feature_vector(curr_member_posts_dicts[p])
-                                                
+
+            # check that this changes, and then leave a comment stating the result
+            # it works fine
             fill_feature_dict(curr_member_posts_dicts[p], aggregated_keys)
 
     return member_aggr_dicts, member_per_post_dicts
@@ -384,21 +418,13 @@ def get_suspects_intutitively(clusters):
                         # we want a different member
                         continue
                     
-                    #------# TODO this whole block needs to become just 
-                    # dict = get_dist(curr_post_dict, member_aggr_dicts[target_member])
                     v1 = []
                     v2 = []
                     for k in curr_post_dict:
                         v1 += [curr_post_dict[k]]
-                        #TODO This try block shouldn't be here. After fixing the issue, remove it
-                        try:
-                            v2 += [member_aggr_dicts[target_member][k]]
-                        except:
-                            v2 += [0]
-                            logging.warning(timestamped("Couldn't find this key " + str(k) + "."))
+                        v2 += [member_aggr_dicts[target_member][k]]
 
                     dist = get_dist(v1, v2)
-                    #------#
 
                     if min_dist == -1 or dist < min_dist:
                         min_dist = dist
@@ -431,8 +457,8 @@ def get_suspects_intutitively(clusters):
         #  o < - - - - - - - - - - /
 
         # In this case, I want the program to output 2 components, rather than 1
-        cc = get_connected_components_count(suspects)
-        logging.info(timestamped("This cluster thus forms " + str(cc) + " strongly connected subclusters of suspects."))
+        cc = get_strongly_connected_components_count(suspects)
+        logging.info(timestamped("This cluster thus forms " + str(cc) + " strongly connected subclusters of suspects.\n"))
 
 def get_suspects_k_means(clusters):
     
@@ -448,14 +474,12 @@ def get_suspects_k_means(clusters):
                 for post in member_per_post_dicts[member]:
                     feature_matrix.append(member_per_post_dicts[member][post])
 
-            print(feature_matrix)
-
             # have to sort the features in order to be able to properly analyse them,
             # as we'll only keep the feature values, the keys will be forgotten, 
             # as they are not needed by the clusterer/classifier
-            aggr_keys = sorted(get_dict_keys(feature_matrix[0]))
+            sorted_keys = sorted(get_dict_keys(feature_matrix[0]))
 
-            feature_matrix = [[member_dict[aggr_key] for aggr_key in aggr_keys] for member_dict in feature_matrix]
+            feature_matrix = [[post_dict[key] for key in sorted_keys] for post_dict in feature_matrix]
 
             suspect_count = len(feature_matrix)
 
@@ -477,7 +501,6 @@ def get_suspects_k_means(clusters):
             plt.ylabel('WCSS')
             plt.show()
 
-# TODO do a big test, where you print and verify each and every step of all main
 if __name__ == "__main__":
 
     init_env()
@@ -497,7 +520,7 @@ if __name__ == "__main__":
 
     # another sol which is even better, and is implemented in this code (Postgres_interface.py),
     # is to sort them alphabetically and get the first few from each database
-    similar_usernames_dict, df = retrieve_similarity_graph(limit = 10000, 
+    similar_usernames_dict, df = retrieve_similarity_graph(limit = 0, 
                                                            write_csv = False,
                                                            active_post_avg = True, 
                                                            psql_interface = pi)

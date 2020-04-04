@@ -15,7 +15,8 @@ class Postgres_interface:
         self.db_names = self.__get_list_of_resources()
         self.query_posts_template = "SELECT \"Timestamp\", \"Author\", \"Content\" FROM \"Post\" WHERE \"Author\" = %s;"
         self.query_members_w_posts_template = "SELECT \"Author\" FROM \"Post\" WHERE \"Author\" = %s LIMIT 1;"
-        self.query_members = "SELECT \"IdMember\", \"Username\" as uname, \"LastVisitDue\", \"LastParse\" FROM \"Member\" ORDER BY uname ASC LIMIT 10000;"
+        self.query_members = "SELECT \"IdMember\", \"Username\" as uname, \"LastVisitDue\", \"LastParse\" FROM \"Member\" ORDER BY uname ASC;"
+        self.query_member_metadata = "SELECT \"Age\", \"TimeSpent\", \"Location\" FROM \"Member\" WHERE \"IdMember\" = %s;"
         self.ERR_STRING = "Command above failed to execute. Exiting..."
 
     def __get_list_of_resources(self):
@@ -70,7 +71,7 @@ class Postgres_interface:
         # restore path
         os.chdir(curr_folder)
 
-    # returns a list of strings, each string represting a line that was members_output while running the command
+    # returns a list of strings, each string represting a line that was output while running the command
     def __run_command(self, cmd, args = (), silent = False):
 
         cur = self.conn.cursor()
@@ -80,7 +81,7 @@ class Postgres_interface:
 
         cur.execute(cmd, args)
         try:
-            members_output = cur.fetchall()
+            output = cur.fetchall()
         except psycopg2.ProgrammingError as e:
             # There may be no results to fetch from the command, so just return
             cur.close()
@@ -90,20 +91,20 @@ class Postgres_interface:
         if "SELECT" in cmd and silent == False:
             logging.info(timestamped("The query returned " + str(cur.rowcount) + " entries."))
 
-        for i in range(len(members_output)):
+        for i in range(len(output)):
             aux = ()
-            for item in members_output[i]:
+            for item in output[i]:
                 if type(item) != str:
                     item = str(item)
                 
                 aux = aux + (item,)
 
-            members_output[i] = aux
+            output[i] = aux
 
         cur.close()
         self.conn.commit()
 
-        return members_output
+        return output
 
     def init_dbs(self, reset):
         for res in self.db_names:
@@ -119,6 +120,7 @@ class Postgres_interface:
         same_username_diff_member = True   
         
         for db_name in self.db_names:
+            # initially connected to db "postgres", so can safely close connection
             self.conn.close()
             #TODO consider reading the password from a file stored on the encrypted hard drive
             self.conn = psycopg2.connect(host="localhost", database=db_name, user="postgres", password="postgrespass12345")
@@ -143,7 +145,7 @@ class Postgres_interface:
             # the LastVisitedDue field of the Member objects and use it to query the Data object on the set of active
             # users.
 
-            #Every object in the database has a "LastParse" column, so using the first date encountered as a reference
+            # Every object in the database has a "LastParse" column, so using the first date encountered as a reference
             # may be very wrong. Wait for Ben to reply to the e-mail
             # spoke to Dylan Phelps, and having worked on the project over the summer, told me that "LastParse" should be used, even if it's incosistent in some places.
 
@@ -261,6 +263,32 @@ class Postgres_interface:
 
         self.conn.close()
         return ret
+
+    def get_members_metadata(self, members):
+
+        members_metadata = []
+
+        for member in members:
+            member_ID = member.IdMember
+            db_name =  member.Database
+
+            # now, obtain all the posts written by this user on this website
+            self.conn = psycopg2.connect(host="localhost", database=db_name, user="postgres", password="postgrespass12345")
+
+            # AsIs is used here in order to prevent this argument from being quoted in the SQL query
+            args = (str(member_ID),)
+
+            try:
+                member_metadata = self.__run_command(self.query_member_metadata, args, silent = True)
+            except:
+                logging.critical(timestamped(self.ERR_STRING))
+                exit()
+
+            members_metadata.append(member_metadata)
+
+        return members_metadata
+            
+
 
 
     # writes the data about the members in the "members" list
