@@ -332,8 +332,7 @@ if __name__ == "__main__":
     # ONLY USE WHEN ADDING NEW DATABASES (careful not to set reset to True and wipe everything for no reason)
     pi.init_dbs(reset = False)
    
-    # TODO remove copy
-    members_file_root = os.path.join(os.getcwd(), "..\\res\\Members - Copy\\Members")
+    members_file_root = os.path.join(os.getcwd(), "..\\res\\Members\\Members")
     logging.info(timestamped("Writing members data..."))
     pi.persist_members_from_all_dbs(members_file_root)
     logging.info(timestamped("Done!"))

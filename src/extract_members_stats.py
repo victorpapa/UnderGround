@@ -47,10 +47,10 @@ if __name__ == "__main__":
                         location[curr_field] = 1
 
     age = similar_dbs_dict = {k: v for k, v in sorted(age.items(), key=lambda x: x[0], reverse=False)}
-    time_spent = {k: v for k, v in sorted(time_spent.items(), key=lambda x: x[0], reverse=True)}
+    time_spent = {k: v for k, v in sorted(time_spent.items(), key=lambda x: float(x[0]), reverse=False)}
     location = {k: v for k, v in sorted(location.items(), key=lambda x: x[1], reverse=True)}
     location = {k: location[k] for k in location if k in [country.name for country in list(pycountry.countries)]}
-
+    # TODO country names may not be the perfect solution: "Russian"
 
     plt.plot(get_dict_keys(age), get_dict_values(age))
     plt.xlabel("Age")
