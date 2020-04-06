@@ -1,6 +1,7 @@
 import os
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import pycountry
 from Utils import get_dict_keys, get_dict_values
 
 if __name__ == "__main__":
@@ -48,6 +49,7 @@ if __name__ == "__main__":
     age = similar_dbs_dict = {k: v for k, v in sorted(age.items(), key=lambda x: x[0], reverse=False)}
     time_spent = {k: v for k, v in sorted(time_spent.items(), key=lambda x: x[0], reverse=True)}
     location = {k: v for k, v in sorted(location.items(), key=lambda x: x[1], reverse=True)}
+    location = {k: location[k] for k in location if k in [country.name for country in list(pycountry.countries)]}
 
 
     plt.plot(get_dict_keys(age), get_dict_values(age))
@@ -56,12 +58,12 @@ if __name__ == "__main__":
     plt.show()
 
     plt.plot(get_dict_keys(time_spent), get_dict_values(time_spent))
-    plt.xticks(get_dict_keys(time_spent)[::20])
+    plt.xticks(get_dict_keys(time_spent)[::len(time_spent) // 10])
     plt.xlabel("Time Spent")
     plt.ylabel("Number of Members")
     plt.show()
     
-    plt.plot(get_dict_keys(location), get_dict_values(location))
+    plt.plot(get_dict_keys(location)[:10], get_dict_values(location)[:10])
     plt.xlabel("Location")
     plt.ylabel("Number of Members")
     plt.show()

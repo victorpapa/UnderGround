@@ -231,85 +231,100 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
 
     return ret
 
-# creates 2 csv files: one containing all the edges in the similarity graph
-#                      one containing all the nodes in the similarity graph
-# returns the similarity graph edges as a dictionary
-# TODO rename this and split it up into more methods
-def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface):
-    # Create a csv containing a node table and an edge table for all the members described in names_path
+def write_metadata(metadata_file_handler, members_metadata):
+    for member_metadata in members_metadata:
+        for metadata in member_metadata:
+            to_write = ""
+            for field in metadata:
+                if field != "":
+                    to_write += str(field) + " "
+                else:
+                    to_write = ""
+                    break
+            
+            if to_write != "":
+                metadata_file_handler.write(to_write + "\n")
 
-    # TODO do this for every join that needs it
-    members_folder = os.path.join(os.getcwd(), *["..", "res", "Members"])
-    df = create_members_df(members_folder, limit = limit)
-    all_members = df.get_members()
-    active_members = df.get_active_members() # list of Member objects
-    logging.debug(timestamped("The total number of active members is " + str(len(active_members)) + "."))
-    # each one of the following two will be a list of metadata for a given set of members
-    # the metadata will hence be a list of lists, each containing one tuple with data about a member
-    # that is because __run_command returns a list of tuples, each tuple representing a row in the output
-    # of the command that was run by PSQL
+# the two metadata parameters will each be a list of lists, each containing one tuple with data about 
+# a member that is because __run_command returns a list of tuples, each tuple representing a row 
+# in the output of the command that was run by PSQL
+def persist_metadata(all_members_metadata, active_members_metadata):
     all_members_metadata = psql_interface.get_members_metadata(all_members)
     active_members_metadata = psql_interface.get_members_metadata(active_members)
 
     # ---------------------------------------------------------------------- #
 
-    # TODO make this a method
     metadata_file_name = os.path.join("..", *["res", "Members_metadata", "all_members_metadata.txt"])
-
     metadata_file_handler = open(metadata_file_name, "w+", encoding = "utf-8")
-    for member_metadata in all_members_metadata:
-        for metadata in member_metadata:
-            for field in metadata:
-                metadata_file_handler.write(str(field) + " ")
-            metadata_file_handler.write("\n")
+    write_metadata(metadata_file_handler, all_members_metadata)
     metadata_file_handler.close()
-    # TODO ensure there's no open left without corresponding close
 
     # ----------------------------------------------------------------------#
-    
     metadata_file_name = os.path.join("..", *["res", "Members_metadata", "active_members_metadata.txt"])
     metadata_file_handler = open(metadata_file_name, "w+", encoding = "utf-8")
-    for member_metadata in active_members_metadata:
-        for metadata in member_metadata:
-            for field in metadata:
-                metadata_file_handler.write(str(field) + " ")
-            metadata_file_handler.write("\n")
+    write_metadata(metadata_file_handler, active_members_metadata)
     metadata_file_handler.close()
 
-    logging.info(timestamped("Wrote the members metadata.\n"))
+def write_post_avg_max(active_members):
+    max_posts = 0
+    active_post_avg = 0
+    for active_member in active_members:
+        # TODO should I store posts in Data or not?
+        active_member_posts = psql_interface.get_posts_from(member = active_member)
+
+        active_post_avg += len(active_member_posts)
+        if len(active_member_posts) > max_posts:
+            max_posts = len(active_member_posts)
+    active_post_avg /= len(active_members)
+    logging.debug(timestamped("The average number of posts for the active users is " + str(active_post_avg)))
+    logging.debug(timestamped("The maximum number of posts for the active users is " + str(max_posts)))
+
+def write_csv_data(similar_dbs_dict, similar_usernames_tuples_global, active_members):
+    # sorts dictionary by the 2nd component (index 1) of each item in descending order
+    similar_dbs_dict = {k: v for k, v in sorted(similar_dbs_dict.items(), key=lambda item: item[1], reverse=True)}
+
+    similar_dbs_file = "..\\res\\similar_dbs.txt"
+    write_dict_to_file(similar_dbs_dict, similar_dbs_file)
+
+    edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
+    nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
+    create_edge_table_csv(edges_csv_file, similar_usernames_tuples_global)
+    create_nodes_table_csv(nodes_csv_file, active_members)
+    edges_csv_file.close()
+    nodes_csv_file.close()
+
+# creates 2 csv files: one containing all the edges in the similarity graph
+#                      one containing all the nodes in the similarity graph
+# returns the similarity graph edges as a dictionary
+# also creates and writes the database similarity file, username similarity graph csv files (edges and nodes)
+# and may also output the average and maximum number of posts written by the active users
+def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface):
+    # Create a csv containing a node table and an edge table for all the members described in names_path
+
+    members_folder = os.path.join(os.getcwd(), *["..", "res", "Members"])
+    df = create_members_df(members_folder, limit = limit)
+
+    all_members = df.get_members()
+    active_members = df.get_active_members() # list of Member objects
+    logging.debug(timestamped("The total number of active members is " + str(len(active_members)) + "."))
+
+    
+    persist_metadata(all_members, active_members)
+    logging.info("Members metadata was written.")
+
+    exit()
 
     # ----------------------------------------------------------------------#
 
     if active_post_avg == True:
-        max_posts = 0
-        active_post_avg = 0
-        for active_member in active_members:
-            # TODO should I store posts in Data or not?
-            active_member_posts = psql_interface.get_posts_from(member = active_member)
+        write_posts_avg_max(active_members)
 
-            active_post_avg += len(active_member_posts)
-            if len(active_member_posts) > max_posts:
-                max_posts = len(active_member_posts)
-        active_post_avg /= len(active_members)
-        logging.debug(timestamped("The average number of posts for the active users is " + str(active_post_avg)))
-        logging.debug(timestamped("The maximum number of posts for the active users is " + str(max_posts)))
-
-    similar_usernames_tuples_global, similar_dbs_dict = get_similar_usernames_and_dbs(active_members, max_dist = 0)
+    similar_usernames_tuples_global, similar_dbs_dict = get_similar_usernames_and_dbs(active_members, 
+                                                                                      max_dist = 0)
 
     if write_csv == True:
+        write_csv_data(similar_dbs_dict, similar_usernames_tuples_global, active_members)
 
-        # sorts dictionary by the 2nd component (index 1) of each item in descending order
-        similar_dbs_dict = {k: v for k, v in sorted(similar_dbs_dict.items(), key=lambda item: item[1], reverse=True)}
-
-        similar_dbs_file = "..\\res\\similar_dbs.txt"
-        write_dict_to_file(similar_dbs_dict, similar_dbs_file)
-
-        edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
-        nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
-        create_edge_table_csv(edges_csv_file, similar_usernames_tuples_global)
-        create_nodes_table_csv(nodes_csv_file, active_members)
-        edges_csv_file.close()
-        nodes_csv_file.close()
 
     similar_usernames_dict_global = tuples_to_dict(similar_usernames_tuples_global)
     connected_components_count = get_connected_components_count(similar_usernames_dict_global)
@@ -337,7 +352,11 @@ def get_member_clusters(similar_usernames_dict, df):
 # initialising the logging file and setting the correct working directory
 def init_env():
     os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\res")
-    logging.basicConfig(filename='log_main.txt', filemode="w", level=logging.DEBUG)
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    logger_handler = logging.FileHandler("log_main.txt", "w", encoding="utf-8")
+    logger_handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+    logger.addHandler(logger_handler)
     os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\src")
 
 def get_member_dicts_from_cluster(cluster):
@@ -520,7 +539,7 @@ if __name__ == "__main__":
 
     # another sol which is even better, and is implemented in this code (Postgres_interface.py),
     # is to sort them alphabetically and get the first few from each database
-    similar_usernames_dict, df = retrieve_similarity_graph(limit = 0, 
+    similar_usernames_dict, df = retrieve_similarity_graph(limit = 100000, 
                                                            write_csv = False,
                                                            active_post_avg = True, 
                                                            psql_interface = pi)

@@ -42,9 +42,6 @@ def is_longer_than(time, days):
     if d < days:
         return False
 
-    if h == 0 and m == 0 and s == 0:
-        return True
-
     return True
 
 # returns True if the string s represents an integer number
