@@ -254,7 +254,7 @@ class Postgres_interface:
         self.conn = psycopg2.connect(host="localhost", database=db_name, user="postgres", password="postgrespass12345")
 
         # AsIs is used here in order to prevent this argument from being quoted in the SQL query
-        args = (AsIs(str(member_ID) + " ORDER BY \"Timestamp\" DESC LIMIT 10"),)
+        args = (AsIs(str(member_ID) + " ORDER BY \"Timestamp\" DESC"),)
 
         posts_output = self.__run_command(self.query_posts_template, args, silent = True)
 

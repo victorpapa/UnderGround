@@ -9,6 +9,7 @@ import csv
 import re
 import logging
 from sklearn.cluster import KMeans
+from copkmeans.cop_kmeans import cop_kmeans
 from matplotlib import pyplot as plt
 
 # initially, similar_usernames contains 3-tuples with low scores for similar usernames, 
@@ -248,7 +249,7 @@ def write_metadata(metadata_file_handler, members_metadata):
 # the two metadata parameters will each be a list of lists, each containing one tuple with data about 
 # a member that is because __run_command returns a list of tuples, each tuple representing a row 
 # in the output of the command that was run by PSQL
-def persist_metadata(all_members_metadata, active_members_metadata):
+def persist_metadata(all_members, active_members, psql_interface):
     all_members_metadata = psql_interface.get_members_metadata(all_members)
     active_members_metadata = psql_interface.get_members_metadata(active_members)
 
@@ -265,7 +266,7 @@ def persist_metadata(all_members_metadata, active_members_metadata):
     write_metadata(metadata_file_handler, active_members_metadata)
     metadata_file_handler.close()
 
-def write_post_avg_max(active_members):
+def write_posts_avg_max(active_members, psql_interface):
     max_posts = 0
     active_post_avg = 0
     for active_member in active_members:
@@ -309,15 +310,18 @@ def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface)
     logging.debug(timestamped("The total number of active members is " + str(len(active_members)) + "."))
 
     
-    persist_metadata(all_members, active_members)
-    logging.info("Members metadata was written.")
+    persist_metadata(all_members = all_members, 
+                     active_members = active_members, 
+                     psql_interface = psql_interface)
 
-    exit()
+    logging.info("Members metadata was written.")
 
     # ----------------------------------------------------------------------#
 
     if active_post_avg == True:
-        write_posts_avg_max(active_members)
+        write_posts_avg_max(active_members = active_members,
+                            psql_interface = psql_interface)
+    
 
     similar_usernames_tuples_global, similar_dbs_dict = get_similar_usernames_and_dbs(active_members, 
                                                                                       max_dist = 0)
@@ -409,6 +413,8 @@ def get_member_dicts_from_cluster(cluster):
 
     return member_aggr_dicts, member_per_post_dicts
 
+# only correctly identifies (really) tight clusters
+# works 50% of the time (by chance) with groups of 2 users
 def get_suspects_intutitively(clusters):
     for cluster in clusters:
         
@@ -483,42 +489,90 @@ def get_suspects_k_means(clusters):
     
     for cluster in clusters:
 
-        if len(cluster) > 2:
+        # member_aggr_dicts is not used in this method
+        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster)
 
-            # member_aggr_dicts is not used in this method
-            member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster)
+        feature_matrix = []
+        for member in member_per_post_dicts:
+            for post in member_per_post_dicts[member]:
+                feature_matrix.append(member_per_post_dicts[member][post])
 
-            feature_matrix = []
-            for member in member_per_post_dicts:
-                for post in member_per_post_dicts[member]:
-                    feature_matrix.append(member_per_post_dicts[member][post])
+        # have to sort the features in order to be able to properly analyse them,
+        # as we'll only keep the feature values, the keys will be forgotten, 
+        # as they are not needed by the clusterer/classifier
+        sorted_keys = sorted(get_dict_keys(feature_matrix[0]))
 
-            # have to sort the features in order to be able to properly analyse them,
-            # as we'll only keep the feature values, the keys will be forgotten, 
-            # as they are not needed by the clusterer/classifier
-            sorted_keys = sorted(get_dict_keys(feature_matrix[0]))
+        feature_matrix = [[post_dict[key] for key in sorted_keys] for post_dict in feature_matrix]
 
-            feature_matrix = [[post_dict[key] for key in sorted_keys] for post_dict in feature_matrix]
+        suspect_count = len(cluster)
 
-            suspect_count = len(feature_matrix)
+    
+        wcss = []
 
+        for i in range(1, suspect_count + 1):
+            k_means = KMeans(n_clusters = i, 
+                            init = "k-means++",    
+                            max_iter = 300,
+                            n_init = 10,
+                            random_state = 0)
+            k_means.fit(feature_matrix)
+            wcss.append(k_means.inertia_)
         
-            wcss = []
+        # TODO instead of plotting a graph and finding K manually, see if it's worth coding the
+        # Elbow method using some maths instead
+        plt.plot(range(1, suspect_count + 1), wcss)
+        plt.title('Elbow Method')
+        plt.xlabel('Number of clusters')
+        plt.ylabel('WCSS')
+        plt.show()
 
-            for i in range(1, suspect_count + 1):
-                k_means = KMeans(n_clusters = i, 
-                                init = "k-means++",    
-                                max_iter = 300,
-                                n_init = 10,
-                                random_state = 0)
-                k_means.fit(feature_matrix)
-                wcss.append(k_means.inertia_)
-            
-            plt.plot(range(1, suspect_count + 1), wcss)
-            plt.title('Elbow Method')
-            plt.xlabel('Number of clusters')
-            plt.ylabel('WCSS')
-            plt.show()
+# TODO cite this library
+# https://github.com/Behrouz-Babaki/COP-Kmeans
+def get_suspects_constrained_k_means(clusters):
+    for cluster in clusters:
+
+
+        # member_aggr_dicts is not used in this method
+        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster)
+
+        feature_matrix = []
+        for member in member_per_post_dicts:
+            for post in member_per_post_dicts[member]:
+                feature_matrix.append(member_per_post_dicts[member][post])
+
+        print(len(feature_matrix))
+        # have to sort the features in order to be able to properly analyse them,
+        # as we'll only keep the feature values, the keys will be forgotten, 
+        # as they are not needed by the clusterer/classifier
+        sorted_keys = sorted(get_dict_keys(feature_matrix[0]))
+
+        feature_matrix = [[post_dict[key] for key in sorted_keys] for post_dict in feature_matrix]
+
+        suspect_count = len(cluster)
+
+        must_link = []
+        cannot_link = []
+        wcss = []
+
+        for i in range(1, suspect_count + 1):
+            clusters, centres = cop_kmeans(dataset = feature_matrix,
+                                           k = i, 
+                                           ml = must_link,
+                                           cl = cannot_link)
+            current_wcss = 0
+            for j in range(len(clusters)):
+                cluster_index = clusters[j]
+                current_wcss += get_dist(feature_matrix[j], centres[cluster_index]) ** 2
+
+            wcss.append(current_wcss)
+        
+        # TODO instead of plotting a graph and finding K manually, see if it's worth coding the
+        # Elbow method using some maths instead
+        plt.plot(range(1, suspect_count + 1), wcss)
+        plt.title('Elbow Method')
+        plt.xlabel('Number of clusters')
+        plt.ylabel('WCSS')
+        plt.show()
 
 if __name__ == "__main__":
 
@@ -539,8 +593,8 @@ if __name__ == "__main__":
 
     # another sol which is even better, and is implemented in this code (Postgres_interface.py),
     # is to sort them alphabetically and get the first few from each database
-    similar_usernames_dict, df = retrieve_similarity_graph(limit = 100000, 
-                                                           write_csv = False,
+    similar_usernames_dict, df = retrieve_similarity_graph(limit = 1000, 
+                                                           write_csv = True,
                                                            active_post_avg = True, 
                                                            psql_interface = pi)
     # clusters will be a list of lists of Member objects
@@ -548,8 +602,9 @@ if __name__ == "__main__":
 
     # ---------------------------
 
-    get_suspects_intutitively(clusters)
-    # get_suspects_k_means(clusters)
+    # get_suspects_intutitively(clusters)
+    get_suspects_k_means(clusters)
+    get_suspects_constrained_k_means(clusters)
 
     # TODO
     # pi.stop_server()
