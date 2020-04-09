@@ -352,7 +352,7 @@ def visit_stack(node, edges, visited, stack):
 
     stack.append(node)
 
-# edges is an edge table for an unweighted graph, e.g. source -> [target target, ...]
+# edges is an edge table for an unweighted graph, e.g. source -> [target, target, ...]
 # performs a dfs and returns the current connected component
 def get_current_strongly_connected_component(node, edges, visited, scc):
     scc += [node]

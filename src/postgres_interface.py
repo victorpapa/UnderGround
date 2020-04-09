@@ -243,6 +243,60 @@ class Postgres_interface:
             members_file_handle = open(members_file_name, "w+", encoding="utf-8")
             self.write_member_data(members_file_handle, member_list)
             members_file_handle.close()
+    def sanitise_post(self, content):
+
+        # given the content of a post, strips the part of the post that was not written by the author
+        # stuff like ***QUOTE***, ***LINK*** etc..
+        ret = []
+
+        # TODO keep the whitespaces and newlines the way they were in the original post
+        paragraphs = content.split("\n")
+        QUOTE_STR = "***QUOTE***"
+        CITING_STR = "***CITING***"
+        LINK_STR = "***LINK***"
+        IMG_STR = "***IMG***"
+
+        quote_count = 0
+        for paragraph in paragraphs:
+            # strip reply information when necessary (abc123 Wrote:)
+            # this doesn't solve the problem perfectly, because when users are replying to posts
+            # that contain more than 1 paragraph, even I by myself can't tell where the actual post starts
+            # so I may leave it like this, even though it's not 100% correct
+            if "Wrote:" in paragraph:
+                continue
+
+            words = paragraph.split()
+            for word in words:
+
+                if word == QUOTE_STR: # start of a quote
+                    quote_count += 1 
+                elif QUOTE_STR in word: # end of a quote
+                    quote_count -= 1
+
+                if quote_count > 0:
+                    continue
+                
+                # ***CITING***[https://www.nulled.to/index.php?app=forums&module=forums&section=findpost&pid=14377978]***CITING***Someone help?
+                # should become Someone help?
+                if CITING_STR in word:
+                    word = word.split(CITING_STR)
+                    if len(word) == 3:
+                        word = word[2]
+                    else:
+                        continue
+                
+                #  ***LINK***blahblahblah[https://i.imgur.com/vFYXexq.png]***LINK***
+                # should become blahblahblah
+                if LINK_STR in word:
+                    word = word.split(LINK_STR)
+                    word = word[1].split("[")[0]
+
+                if IMG_STR in word:
+                    continue
+                
+                ret.append(word)
+
+        return " ".join(ret)
 
     # returns a list of all the posts written by member
     def get_posts_from(self, member):
@@ -265,6 +319,21 @@ class Postgres_interface:
             post_ID   = row[0].strip()
             author_ID = row[1].strip()
             content   = row[2]
+
+            if "Hidden Content" in content:
+                continue
+
+            if "***QUOTE***" in content:
+                # TODO find a post that contains "***QUOTE***"
+                pass
+
+            # print("\n# ------------------------------------------------------------ #")
+            # print(content + "\n\n\n")
+
+            content = self.sanitise_post(content)
+
+            # print("\n# -------------- #")
+            # print(content)
 
             ret += [Post(IdPost=post_ID, Author=author_ID, Content=content)]
 

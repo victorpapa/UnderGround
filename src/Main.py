@@ -9,8 +9,11 @@ import csv
 import re
 import logging
 from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 from copkmeans.cop_kmeans import cop_kmeans
 from matplotlib import pyplot as plt
+
+# TODO move all comments to be docstrings for each method and class
 
 # initially, similar_usernames contains 3-tuples with low scores for similar usernames, 
 # and high scores for more different, but still similar usernames. This function reverses this behavior.
@@ -219,7 +222,7 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
         feat_dict = get_bow(text)
     elif feature == "n_grams":
         if n == 1: 
-            logging.error(timestamped("Did you forget to set n when querying n_grams?"))
+            logging.warning(timestamped("Did you forget to set n when querying n_grams?"))
         feat_dict = get_n_grams(text, n)
     else:
         logging.critical(timestamped("Feature type " + feature + " not implemented."))
@@ -272,6 +275,9 @@ def write_posts_avg_max(active_members, psql_interface):
     for active_member in active_members:
         # TODO should I store posts in Data or not?
         active_member_posts = psql_interface.get_posts_from(member = active_member)
+
+        for p in active_member_posts:
+            print(p.Content)
 
         active_post_avg += len(active_member_posts)
         if len(active_member_posts) > max_posts:
@@ -363,7 +369,11 @@ def init_env():
     logger.addHandler(logger_handler)
     os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\src")
 
-def get_member_dicts_from_cluster(cluster):
+def get_member_dicts_from_cluster(cluster, psql_interface, posts_args):
+
+    feat_type = posts_args[0]
+    use_presence = posts_args[1]
+    n = posts_args[2]
 
     # Obtain the vector for each member
 
@@ -377,7 +387,7 @@ def get_member_dicts_from_cluster(cluster):
     for i in range(len(cluster)):
         member = cluster[i]
         member_aggr_feat_dict, member_per_post_feat_dict = get_features_dict_written_by(member = member, 
-                                                                                    psql_interface = pi, 
+                                                                                    psql_interface = psql_interface, 
                                                                                     feature = feat_type, 
                                                                                     presence = use_presence,
                                                                                     n = n)
@@ -415,10 +425,12 @@ def get_member_dicts_from_cluster(cluster):
 
 # only correctly identifies (really) tight clusters
 # works 50% of the time (by chance) with groups of 2 users
-def get_suspects_intutitively(clusters):
+def get_suspects_intutitively(clusters, psql_interface, posts_args):
     for cluster in clusters:
         
-        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster)
+        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster,
+                                                                                 psql_interface = psql_interface,
+                                                                                 posts_args = posts_args)
 
         suspects = {}
 
@@ -485,12 +497,14 @@ def get_suspects_intutitively(clusters):
         cc = get_strongly_connected_components_count(suspects)
         logging.info(timestamped("This cluster thus forms " + str(cc) + " strongly connected subclusters of suspects.\n"))
 
-def get_suspects_k_means(clusters):
+def get_suspects_k_means(clusters, psql_interface, posts_args):
     
     for cluster in clusters:
 
         # member_aggr_dicts is not used in this method
-        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster)
+        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster, 
+                                                                                 psql_interface = psql_interface,
+                                                                                 posts_args = posts_args)
 
         feature_matrix = []
         for member in member_per_post_dicts:
@@ -508,6 +522,7 @@ def get_suspects_k_means(clusters):
 
     
         wcss = []
+        sil = []
 
         for i in range(1, suspect_count + 1):
             k_means = KMeans(n_clusters = i, 
@@ -517,30 +532,54 @@ def get_suspects_k_means(clusters):
                             random_state = 0)
             k_means.fit(feature_matrix)
             wcss.append(k_means.inertia_)
-        
-        # TODO instead of plotting a graph and finding K manually, see if it's worth coding the
-        # Elbow method using some maths instead
-        plt.plot(range(1, suspect_count + 1), wcss)
-        plt.title('Elbow Method')
-        plt.xlabel('Number of clusters')
-        plt.ylabel('WCSS')
+            
+            if i >= 2:
+                labels = k_means.labels_
+                sil.append(silhouette_score(feature_matrix, labels, metric = "euclidean"))
+
+        max_diff = 0
+        actual_k = 0
+
+        for i in range(1, len(wcss)):
+            curr_diff = wcss[i-1] - wcss[i]
+            if curr_diff >= max_diff:
+                max_diff = curr_diff
+                actual_k = i + 1
+
+        # instead of just plotting a graph and finding K manually,
+        # use the Silhouette method as well
+        fig, axs = plt.subplots(1, 2)
+        axs[0].plot(range(1, suspect_count + 1), wcss)
+        axs[0].set_title('Elbow Method')
+        axs[0].set(xlabel='Number of clusters', ylabel='WCSS')
+
+        if suspect_count > 2:
+            axs[1].plot(range(2, suspect_count + 1), sil)
+            axs[1].set_title('Silhouette Method')
+            axs[1].set(xlabel='Number of clusters', ylabel='S_SCORE')
+
         plt.show()
+        
 
 # TODO cite this library
 # https://github.com/Behrouz-Babaki/COP-Kmeans
-def get_suspects_constrained_k_means(clusters):
+# it appears that the differences between the wcss of clusters is lower here than without contraints
+def get_suspects_constrained_k_means(clusters, psql_interface, posts_args):
     for cluster in clusters:
 
 
         # member_aggr_dicts is not used in this method
-        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster)
+        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster, 
+                                                                                 psql_interface = psql_interface,
+                                                                                 posts_args = posts_args)
 
         feature_matrix = []
         for member in member_per_post_dicts:
             for post in member_per_post_dicts[member]:
                 feature_matrix.append(member_per_post_dicts[member][post])
 
-        print(len(feature_matrix))
+        # print(len(feature_matrix))
+
         # have to sort the features in order to be able to properly analyse them,
         # as we'll only keep the feature values, the keys will be forgotten, 
         # as they are not needed by the clusterer/classifier
@@ -565,9 +604,9 @@ def get_suspects_constrained_k_means(clusters):
                 current_wcss += get_dist(feature_matrix[j], centres[cluster_index]) ** 2
 
             wcss.append(current_wcss)
-        
-        # TODO instead of plotting a graph and finding K manually, see if it's worth coding the
-        # Elbow method using some maths instead
+
+        # instead of just plotting a graph and finding K manually,
+        # use the Silhouette method as well
         plt.plot(range(1, suspect_count + 1), wcss)
         plt.title('Elbow Method')
         plt.xlabel('Number of clusters')
@@ -579,11 +618,13 @@ if __name__ == "__main__":
     init_env()
 
     # TODO some of these variables can be seen by the get_suspects methods. Do some tests and see how scopes work
-    centroids = []
-    features = {}
+    # TODO DEBUG findfont: score(<Font 'Trebuchet MS' (trebuc.ttf) normal normal 400 normal>) = 10.05 
+    # solve that ^
+    
     feat_type = "bow"
     use_presence = False
     n = 1
+    posts_args = (feat_type, use_presence, n)
     
     pi = Postgres_interface()
     pi.start_server()
@@ -593,7 +634,7 @@ if __name__ == "__main__":
 
     # another sol which is even better, and is implemented in this code (Postgres_interface.py),
     # is to sort them alphabetically and get the first few from each database
-    similar_usernames_dict, df = retrieve_similarity_graph(limit = 1000, 
+    similar_usernames_dict, df = retrieve_similarity_graph(limit = 10000, 
                                                            write_csv = True,
                                                            active_post_avg = True, 
                                                            psql_interface = pi)
@@ -602,9 +643,9 @@ if __name__ == "__main__":
 
     # ---------------------------
 
-    # get_suspects_intutitively(clusters)
-    get_suspects_k_means(clusters)
-    get_suspects_constrained_k_means(clusters)
+    # get_suspects_intutitively(clusters, psql_interface = pi, posts_args = posts_args)
+    get_suspects_k_means(clusters, psql_interface = pi, posts_args = posts_args)
+    # get_suspects_constrained_k_means(clusters, psql_interface = pi, posts_args = posts_args)
 
     # TODO
     # pi.stop_server()
