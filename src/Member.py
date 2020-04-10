@@ -2,7 +2,7 @@ from Utils import is_longer_than
 
 class Member:
 
-    def __init__(self, GlobalId = 0, IdMember = 0, Site = 0, Username = "anonymous", 
+    def __init__(self, GlobalId = 0, IdMember = 0, Site = 0, Username = "", 
                 Avatar = '', RegistrationDate = "", Age = 0, Signature = "", Location = '', 
                 localT = "", TimeSpent = 0, LastVisitDue = "", TotalPosts = 0, Reputation = 0, 
                 Prestige = 0, Homepage = '', LastParse = "", parsed = False, URL = "",

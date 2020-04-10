@@ -128,87 +128,73 @@ def get_member_dicts_from_cluster(cluster, psql_interface, posts_args):
 
 # only correctly identifies (really) tight clusters
 # works 50% of the time (by chance) with groups of 2 users
-def get_suspects_intuitively(clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
+def get_suspects_intuitively(cluster, member_aggr_dicts, member_per_post_dicts):
 
-    if dim_reduction == "pca":
-        reducer = PCA(n_components=n_components)
-    elif dim_reduction == "tsne":
-        reducer = TSNE(n_components=n_components)
+    suspects = {}
 
-    for cluster in clusters:
-        
-        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster,
-                                                                                 psql_interface = psql_interface,
-                                                                                 posts_args = posts_args)
+    # iterate through members, and assign each of their posts to one of the other members
+    # the most chosen member will be suspected to be the same member as the one we are analysing
 
-        if reduce_dim == True:
-            for member in member_per_post_dicts:
-                member_per_post_dicts[member] = reducer.fit_transform(member_per_post_dicts[member])
+    for source_member in member_per_post_dicts:
+        # curr_member_posts_dicts is a dictionary that maps a member to a dictionary, which maps each post
+        # written by source_member to its feature vector
+        curr_member_posts_dicts = member_per_post_dicts[source_member]
+        labels = {}
 
-        suspects = {}
-
-        # iterate through members, and assign each of their posts to one of the other members
-        # the most chosen member will be suspected to be the same member as the one we are analysing
-
-        for source_member in member_per_post_dicts:
-            # curr_member_posts_dicts is a dictionary that maps a member to a dictionary, which maps each post
-            # written by source_member to its feature vector
-            curr_member_posts_dicts = member_per_post_dicts[source_member]
-            labels = {}
-
-            for p in curr_member_posts_dicts:
-                # curr_post_dict is a dictionary, which maps each post
-                # written by the source_member to its feature vector
-                
-                curr_post_dict = curr_member_posts_dicts[p]
-
-                min_dist = -1
-                for target_member in member_aggr_dicts:
-                    if target_member == source_member:
-                        # we want a different member
-                        continue
-                    
-                    v1 = []
-                    v2 = []
-                    for k in curr_post_dict:
-                        v1 += [curr_post_dict[k]]
-                        v2 += [member_aggr_dicts[target_member][k]]
-
-                    dist = get_dist(v1, v2)
-
-                    if min_dist == -1 or dist < min_dist:
-                        min_dist = dist
-                        member_label = target_member
-
-                if member_label in labels:
-                    labels[member_label] += 1
-                else:
-                    labels[member_label] = 1
-        
-            maximum = -1
+        for p in curr_member_posts_dicts:
+            # curr_post_dict is a dictionary, which maps each post
+            # written by the source_member to its feature vector
             
-            for member_label in labels:
-                if maximum == -1 or labels[member_label] > maximum:
-                    maximum = labels[member_label]
-                    closest_member = member_label
+            curr_post_dict = curr_member_posts_dicts[p]
 
-            suspects.update({source_member:[closest_member]})
+            min_dist = -1
+            for target_member in member_aggr_dicts:
+                if target_member == source_member:
+                    # we want a different member
+                    continue
+                
+                # we only need the values of the dicts, and we want the features in the same order
+                v1 = []
+                v2 = []
+                for k in curr_post_dict:
+                    v1 += [curr_post_dict[k]]
+                    v2 += [member_aggr_dicts[target_member][k]]
 
-        # suspects is a dict, mapping Member objects to lists of Member objects, each list having 1 item
-        for suspect in suspects:
-            logging.info(timestamped(suspect.Username + " " + suspect.Database + " -----> " + suspects[suspect][0].Username + " " + suspects[suspect][0].Database))
+                dist = get_dist(v1, v2)
+
+                if min_dist == -1 or dist < min_dist:
+                    min_dist = dist
+                    member_label = target_member
+
+            if member_label in labels:
+                labels[member_label] += 1
+            else:
+                labels[member_label] = 1
+    
+        maximum = -1
         
-        # Here we want STRONGLY CONNECTED COMPONENTS
-        
-        #  o
-        #  ▲ 
-        #  | 
-        #  ▼                        o
-        #  o < - - - - - - - - - - /
+        for member_label in labels:
+            if maximum == -1 or labels[member_label] > maximum:
+                maximum = labels[member_label]
+                closest_member = member_label
 
-        # In this case, I want the program to output 2 components, rather than 1
-        cc = get_strongly_connected_components_count(suspects)
-        logging.info(timestamped("This cluster thus forms " + str(cc) + " strongly connected subclusters of suspects.\n"))
+        suspects.update({source_member:[closest_member]})
+
+    # suspects is a dict, mapping Member objects to lists of Member objects, each list having 1 item
+    for suspect in suspects:
+        logging.info(timestamped(str(suspect.IdMember) + " " + suspect.Database + " -----> " + str(suspects[suspect][0].IdMember) + " " + suspects[suspect][0].Database))
+    
+    # Here we want STRONGLY CONNECTED COMPONENTS
+    
+    #  o
+    #  ▲ 
+    #  | 
+    #  ▼                        o
+    #  o < - - - - - - - - - - /
+
+    # In this case, I want the program to output 2 components, rather than 1
+    cc = get_strongly_connected_components_count(suspects)
+    logging.info(timestamped("This cluster thus forms " + str(cc) + " strongly connected subclusters of suspects.\n"))
 
 
 def persist_feature_matrix(feature_matrix):
@@ -250,7 +236,7 @@ def populate_must_link(must_link, member_per_post_dicts):
 
 # part of the code from
 # https://scikit-learn.org/stable/auto_examples/cluster/plot_kmeans_silhouette_analysis.html#sphx-glr-auto-examples-cluster-plot-kmeans-silhouette-analysis-py
-def plot_silhouettes_and_posts(n_clusters, feature_matrix, centers, labels, sil_avg):
+def plot_silhouettes_and_posts(n_clusters, feature_matrix, centers, labels, sil_avg, reduce_dim):
 
     fig, (ax1, ax2) = plt.subplots(1, 2)
     ax1.set_xlim([-0.1, 1])
@@ -292,6 +278,9 @@ def plot_silhouettes_and_posts(n_clusters, feature_matrix, centers, labels, sil_
         "with n_clusters = %d" % n_clusters),
         fontsize=14, fontweight='bold')
 
+    if reduce_dim == False:
+        return
+
     # -------------------------- Plotting the posts -------------------------- #
 
     colors = cm.nipy_spectral(labels.astype(float) / n_clusters)
@@ -311,133 +300,107 @@ def plot_silhouettes_and_posts(n_clusters, feature_matrix, centers, labels, sil_
     ax2.set_xlabel("Feature space for the 1st feature")
     ax2.set_ylabel("Feature space for the 2nd feature")
 
-# TODO apply some dimensinality reduction before using any algorithm
 # TODO cite this library
 # https://github.com/Behrouz-Babaki/COP-Kmeans
 # it appears that the differences between the wcss of clusters is lower here than without contraints
-def get_suspects_constrained_k_means(clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
-    if dim_reduction == "pca":
-        reducer = PCA(n_components = n_components)
-    elif dim_reduction == "tsne":
-        reducer = TSNE(n_components = n_components)
+def get_suspects_constrained_k_means(cluster, feature_matrix, member_per_post_dicts, reduce_dim):
 
-    for cluster in clusters:
+    suspect_count = len(cluster)
 
-        # member_aggr_dicts is not used in this method
-        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster, 
-                                                                                 psql_interface = psql_interface,
-                                                                                 posts_args = posts_args)
+    must_link = []
+    cannot_link = []
+    wcss = []
+    sil_avgs = []
 
-        feature_matrix = []
-        for member in member_per_post_dicts:
-            for post in member_per_post_dicts[member]:
-                feature_matrix.append(member_per_post_dicts[member][post])
+    populate_must_link(must_link, member_per_post_dicts)
 
-        # have to sort the features in order to be able to properly analyse them,
-        # as we'll only keep the feature values, the keys will be forgotten, 
-        # as they are not needed by the clusterer/classifier
-        sorted_keys = sorted(get_dict_keys(feature_matrix[0]))
-        feature_matrix = [[post_dict[key] for key in sorted_keys] for post_dict in feature_matrix]
+    for n_clusters in range(1, suspect_count + 1):
+        k_clusters, k_centers = cop_kmeans(dataset = feature_matrix,
+                                            k = n_clusters, 
+                                            ml = must_link,
+                                            cl = cannot_link)
+        current_wcss = 0
+        for j in range(len(k_clusters)):
+            cluster_index = k_clusters[j]
+            current_wcss += get_dist(feature_matrix[j], k_centers[cluster_index]) ** 2
 
-        # TODO only persist one feature matrix (just for one cluster), otherwise it will just keep
-        # getting overwritten
-        persist_feature_matrix(feature_matrix)
+        wcss.append(current_wcss)
 
-        if reduce_dim == True:
-            principalComponents = reducer.fit_transform(feature_matrix)
+        if n_clusters >= 2:
+            labels = np.array(k_clusters)
+            sil_avg = silhouette_score(feature_matrix, labels, metric = "euclidean")
+            sil_avgs.append(sil_avg)
 
-        suspect_count = len(cluster)
+            # required by some code in plot_silhouettes_and_posts()
+            k_centers = np.array(k_centers)
 
-        must_link = []
-        cannot_link = []
-        wcss = []
-        sil_avgs = []
+            plot_silhouettes_and_posts(n_clusters, feature_matrix, k_centers, labels, sil_avg, reduce_dim)
+            
+    plot_results(wcss = wcss, sil_avgs = sil_avgs)
 
-        populate_must_link(must_link, member_per_post_dicts)
+def get_suspects_k_means(cluster, feature_matrix, reduce_dim):
 
-        for n_clusters in range(1, suspect_count + 1):
-            k_clusters, k_centers = cop_kmeans(dataset = principalComponents,
-                                               k = n_clusters, 
-                                               ml = must_link,
-                                               cl = cannot_link)
-            current_wcss = 0
-            for j in range(len(k_clusters)):
-                cluster_index = k_clusters[j]
-                current_wcss += get_dist(principalComponents[j], k_centers[cluster_index]) ** 2
+    suspect_count = len(cluster)
+    wcss = []
+    sil_avgs = []
 
-            wcss.append(current_wcss)
+    for n_clusters in range(1, suspect_count + 1):
+        k_means = KMeans(n_clusters = n_clusters, 
+                            init = "k-means++",    
+                            max_iter = 300,
+                            n_init = 10,
+                            random_state = 0)
+        k_means.fit(feature_matrix)
+        wcss.append(k_means.inertia_)
 
-            if n_clusters >= 2:
-                labels = np.array(k_clusters)
-                sil_avg = silhouette_score(principalComponents, labels, metric = "euclidean")
-                sil_avgs.append(sil_avg)
+        if n_clusters >= 2:
+            labels = k_means.labels_
+            sil_avg = silhouette_score(feature_matrix, labels, metric = "euclidean")
+            sil_avgs.append(sil_avg)
 
-                plot_silhouettes_and_posts(n_clusters, feature_matrix, k_centers, labels, sil_avg)
-                
-        plot_results(wcss = wcss, sil_avgs = sil_avgs)
+            plot_silhouettes_and_posts(n_clusters, feature_matrix, k_means.cluster_centers_, labels, sil_avg, reduce_dim)
 
-def get_suspects_k_means(clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
-    
-    if dim_reduction == "pca":
-        reducer = PCA(n_components = n_components)
-    elif dim_reduction == "tsne":
-        reducer = TSNE(n_components = n_components)
-    
-    for cluster in clusters:
-
-        # member_aggr_dicts is not used in this method
-        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster, 
-                                                                                 psql_interface = psql_interface,
-                                                                                 posts_args = posts_args)
-
-        feature_matrix = []
-        for member in member_per_post_dicts:
-            for post in member_per_post_dicts[member]:
-                feature_matrix.append(member_per_post_dicts[member][post])
-
-
-        # have to sort the features in order to be able to properly analyse them,
-        # as we'll only keep the feature values, the keys will be forgotten, 
-        # as they are not needed by the clusterer/classifier
-        sorted_keys = sorted(get_dict_keys(feature_matrix[0]))
-
-        feature_matrix = [[post_dict[key] for key in sorted_keys] for post_dict in feature_matrix]
-
-        # TODO only persist one feature matrix (just for one cluster), otherwise it will just keep
-        # getting overwritten
-        persist_feature_matrix(feature_matrix)
-
-        if reduce_dim == True:
-            principalComponents = reducer.fit_transform(feature_matrix)
-
-        suspect_count = len(cluster)
-        wcss = []
-        sil_avgs = []
-
-        for n_clusters in range(1, suspect_count + 1):
-            k_means = KMeans(n_clusters = n_clusters, 
-                             init = "k-means++",    
-                             max_iter = 300,
-                             n_init = 10,
-                             random_state = 0)
-            k_means.fit(principalComponents)
-            wcss.append(k_means.inertia_)
-
-            if n_clusters >= 2:
-                labels = k_means.labels_
-                sil_avg = silhouette_score(principalComponents, labels, metric = "euclidean")
-                sil_avgs.append(sil_avg)
-
-                plot_silhouettes_and_posts(n_clusters, principalComponents, k_means.cluster_centers_, labels, sil_avg)
-
-        plot_results(wcss = wcss, sil_avgs = sil_avgs)
+    plot_results(wcss = wcss, sil_avgs = sil_avgs)
 
 def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
-    if method == "intutitive":
-        get_suspects_intuitively(clusters, psql_interface = psql_interface, posts_args = posts_args, reduce_dim = reduce_dim, dim_reduction = dim_reduction, n_components = n_components)
-    
-    if method == "k_means":
-        get_suspects_k_means(clusters, psql_interface = psql_interface, posts_args = posts_args, reduce_dim = reduce_dim, dim_reduction = dim_reduction, n_components = n_components)
 
-    if method == "cop_k_means":
-        get_suspects_constrained_k_means(clusters, psql_interface = psql_interface, posts_args = posts_args, reduce_dim = reduce_dim, dim_reduction = dim_reduction, n_components = n_components)
+    if dim_reduction == "pca":
+        reducer = PCA(n_components = n_components)
+    elif dim_reduction == "tsne":
+        reducer = TSNE(n_components = n_components)
+    
+    for cluster in clusters:
+
+        # member_aggr_dicts is not used in this method
+        member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster, 
+                                                                                 psql_interface = psql_interface,
+                                                                                 posts_args = posts_args)
+
+        feature_matrix = []
+        for member in member_per_post_dicts:
+            for post in member_per_post_dicts[member]:
+                feature_matrix.append(member_per_post_dicts[member][post])
+
+
+        # have to sort the features in order to be able to properly analyse them,
+        # as we'll only keep the feature values, the keys will be forgotten, 
+        # as they are not needed by the clusterer/classifier
+        sorted_keys = sorted(get_dict_keys(feature_matrix[0]))
+
+        feature_matrix = [[post_dict[key] for key in sorted_keys] for post_dict in feature_matrix]
+
+        # TODO only persist one feature matrix (just for one cluster), otherwise it will just keep
+        # getting overwritten
+        persist_feature_matrix(feature_matrix)
+
+        if reduce_dim == True:
+            feature_matrix = reducer.fit_transform(feature_matrix)
+
+        if method == "intuitive":
+            get_suspects_intuitively(cluster = cluster, member_aggr_dicts = member_aggr_dicts, member_per_post_dicts = member_per_post_dicts)
+        elif method == "k_means":
+            get_suspects_k_means(cluster = cluster, feature_matrix = feature_matrix, reduce_dim = reduce_dim)
+        elif method == "cop_k_means":
+            get_suspects_constrained_k_means(cluster = cluster, feature_matrix = feature_matrix, member_per_post_dicts = member_per_post_dicts, reduce_dim = reduce_dim)
+        else:
+            print("Method not implemented.")

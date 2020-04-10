@@ -335,7 +335,7 @@ class Postgres_interface:
             ret += [Post(IdPost=post_ID, Author=author_ID, Content=content)]
 
         self.conn.close()
-        logging.info(timestamped(str(member_ID) + " " + db_name + " " + str(len(ret)) + " " + str(hidden_post_count)))
+        # logging.info(timestamped(str(member_ID) + " " + db_name + " " + str(len(ret)) + " " + str(hidden_post_count)))
         return ret
 
     def get_members_metadata(self, members):
