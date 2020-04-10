@@ -8,6 +8,7 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT, AsIs
 from psycopg2.sql import Identifier, SQL, Literal
 from Utils import get_time_diff, get_00_time_from, get_date_from, is_int, timestamped
 
+
 class Postgres_interface:
     
     def __init__(self):
@@ -313,6 +314,7 @@ class Postgres_interface:
         posts_output = self.__run_command(self.query_posts_template, args, silent = True)
 
         ret = []
+        hidden_post_count = 0
 
         for row in posts_output:
 
@@ -321,23 +323,19 @@ class Postgres_interface:
             content   = row[2]
 
             if "Hidden Content" in content:
+                hidden_post_count += 1
                 continue
 
             if "***QUOTE***" in content:
                 # TODO find a post that contains "***QUOTE***"
                 pass
 
-            # print("\n# ------------------------------------------------------------ #")
-            # print(content + "\n\n\n")
-
             content = self.sanitise_post(content)
-
-            # print("\n# -------------- #")
-            # print(content)
 
             ret += [Post(IdPost=post_ID, Author=author_ID, Content=content)]
 
         self.conn.close()
+        logging.info(timestamped(str(member_ID) + " " + db_name + " " + str(len(ret)) + " " + str(hidden_post_count)))
         return ret
 
     def get_members_metadata(self, members):
