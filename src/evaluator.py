@@ -49,7 +49,7 @@ if __name__ == "__main__":
     psql_interface.start_server()
 
     features = {}
-    feat_type = "n_grams"
+    feat_type = "bow"
     use_presence = False
     n = 5
     posts_args = (feat_type, use_presence, n)
@@ -65,7 +65,7 @@ if __name__ == "__main__":
                  psql_interface = psql_interface, 
                  posts_args = posts_args, 
                  reduce_dim = True,
-                 dim_reduction = "pca",
+                 dim_reduction = "tsne",
                  n_components = 2)
 
     
