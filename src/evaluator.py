@@ -59,7 +59,13 @@ if __name__ == "__main__":
         my_posts += psql_interface.get_posts_from(test_member)
 
     clusters = [test_members] # one cluster containing all the users
-    get_suspects("k_means", clusters = clusters, psql_interface = psql_interface, posts_args = posts_args)
+    get_suspects(method = "k_means", 
+                 clusters = clusters, 
+                 psql_interface = psql_interface, 
+                 posts_args = posts_args, 
+                 reduce_dim = True,
+                 dim_reduction = "pca",
+                 n_components = 2)
 
     
 

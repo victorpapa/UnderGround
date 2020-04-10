@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 
 # returns the dictionary of features for the given post
@@ -127,12 +128,22 @@ def get_member_dicts_from_cluster(cluster, psql_interface, posts_args):
 
 # only correctly identifies (really) tight clusters
 # works 50% of the time (by chance) with groups of 2 users
-def get_suspects_intutitively(clusters, psql_interface, posts_args):
+def get_suspects_intutitively(clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
+
+    if dim_reduction == "pca":
+        reducer = PCA(n_components=n_components)
+    elif dim_reduction == "tsne":
+        reducer = TSNE(n_components=n_components)
+
     for cluster in clusters:
         
         member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster,
                                                                                  psql_interface = psql_interface,
                                                                                  posts_args = posts_args)
+
+        if reduce_dim == True:
+            for member in member_per_post_dicts:
+                member_per_post_dicts[member] = reducer.fit_transform(member_per_post_dicts[member])
 
         suspects = {}
 
@@ -237,6 +248,8 @@ def populate_must_link(must_link, member_per_post_dicts):
             must_link += [(idx, i)]
         idx += post_count
 
+# part of the code from
+# https://scikit-learn.org/stable/auto_examples/cluster/plot_kmeans_silhouette_analysis.html#sphx-glr-auto-examples-cluster-plot-kmeans-silhouette-analysis-py
 def plot_silhouettes_and_posts(n_clusters, feature_matrix, centers, labels, sil_avg):
 
     fig, (ax1, ax2) = plt.subplots(1, 2)
@@ -282,6 +295,7 @@ def plot_silhouettes_and_posts(n_clusters, feature_matrix, centers, labels, sil_
     # -------------------------- Plotting the posts -------------------------- #
 
     colors = cm.nipy_spectral(labels.astype(float) / n_clusters)
+
     ax2.scatter(feature_matrix[:, 0], feature_matrix[:, 1], marker='.', s=30, lw=0, alpha=0.7,
                 c=colors, edgecolor='k')
 
@@ -301,8 +315,11 @@ def plot_silhouettes_and_posts(n_clusters, feature_matrix, centers, labels, sil_
 # TODO cite this library
 # https://github.com/Behrouz-Babaki/COP-Kmeans
 # it appears that the differences between the wcss of clusters is lower here than without contraints
-def get_suspects_constrained_k_means(clusters, psql_interface, posts_args):
-    pca = PCA(n_components=2)
+def get_suspects_constrained_k_means(clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
+    if dim_reduction == "pca":
+        reducer = PCA(n_components = n_components)
+    elif dim_reduction == "tsne":
+        reducer = TSNE(n_components = n_components)
 
     for cluster in clusters:
 
@@ -326,7 +343,8 @@ def get_suspects_constrained_k_means(clusters, psql_interface, posts_args):
         # getting overwritten
         persist_feature_matrix(feature_matrix)
 
-        principalComponents = pca.fit_transform(feature_matrix)
+        if reduce_dim == True:
+            principalComponents = reducer.fit_transform(feature_matrix)
 
         suspect_count = len(cluster)
 
@@ -358,9 +376,12 @@ def get_suspects_constrained_k_means(clusters, psql_interface, posts_args):
                 
         plot_results(wcss = wcss, sil_avgs = sil_avgs)
 
-def get_suspects_k_means(clusters, psql_interface, posts_args):
+def get_suspects_k_means(clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
     
-    pca = PCA(n_components=2)
+    if dim_reduction == "pca":
+        reducer = PCA(n_components = n_components)
+    elif dim_reduction == "tsne":
+        reducer = TSNE(n_components = n_components)
     
     for cluster in clusters:
 
@@ -386,7 +407,8 @@ def get_suspects_k_means(clusters, psql_interface, posts_args):
         # getting overwritten
         persist_feature_matrix(feature_matrix)
 
-        principalComponents = pca.fit_transform(feature_matrix)
+        if reduce_dim == True:
+            principalComponents = reducer.fit_transform(feature_matrix)
 
         suspect_count = len(cluster)
         wcss = []
@@ -410,12 +432,12 @@ def get_suspects_k_means(clusters, psql_interface, posts_args):
 
         plot_results(wcss = wcss, sil_avgs = sil_avgs)
 
-def get_suspects(method, clusters, psql_interface, posts_args):
+def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
     if method == "intutitive":
-        get_suspects_intutitively(clusters, psql_interface = psql_interface, posts_args = posts_args)
+        get_suspects_intutitively(clusters, psql_interface = psql_interface, posts_args = posts_args, reduce_dim = reduce_dim, dim_reduction = dim_reduction, n_components = n_components)
     
     if method == "k_means":
-        get_suspects_k_means(clusters, psql_interface = psql_interface, posts_args = posts_args)
+        get_suspects_k_means(clusters, psql_interface = psql_interface, posts_args = posts_args, reduce_dim = reduce_dim, dim_reduction = dim_reduction, n_components = n_components)
 
     if method == "cop_k_means":
-        get_suspects_constrained_k_means(clusters, psql_interface = psql_interface, posts_args = posts_args)
+        get_suspects_constrained_k_means(clusters, psql_interface = psql_interface, posts_args = posts_args, reduce_dim = reduce_dim, dim_reduction = dim_reduction, n_components = n_components)
