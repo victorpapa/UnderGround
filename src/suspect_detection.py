@@ -128,7 +128,7 @@ def get_member_dicts_from_cluster(cluster, psql_interface, posts_args):
 
 # only correctly identifies (really) tight clusters
 # works 50% of the time (by chance) with groups of 2 users
-def get_suspects_intutitively(clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
+def get_suspects_intuitively(clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
 
     if dim_reduction == "pca":
         reducer = PCA(n_components=n_components)
@@ -434,7 +434,7 @@ def get_suspects_k_means(clusters, psql_interface, posts_args, reduce_dim, dim_r
 
 def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
     if method == "intutitive":
-        get_suspects_intutitively(clusters, psql_interface = psql_interface, posts_args = posts_args, reduce_dim = reduce_dim, dim_reduction = dim_reduction, n_components = n_components)
+        get_suspects_intuitively(clusters, psql_interface = psql_interface, posts_args = posts_args, reduce_dim = reduce_dim, dim_reduction = dim_reduction, n_components = n_components)
     
     if method == "k_means":
         get_suspects_k_means(clusters, psql_interface = psql_interface, posts_args = posts_args, reduce_dim = reduce_dim, dim_reduction = dim_reduction, n_components = n_components)
