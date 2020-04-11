@@ -1,3 +1,4 @@
+import os
 import csv
 import nltk
 import math
@@ -224,6 +225,29 @@ def get_bow(post):
             ret[w] = ret[w] + 1
         else:
             ret[w] = 1
+
+    return ret
+
+# input: post as a list of tokens
+# returns a dictionary mapping each word to the number of occurences, but only keeps
+# track of function words
+def get_function_words_bow(post):
+    function_words_file = os.path.join("..", *["res", "function_words.txt"])
+    f = open(function_words_file, "r", encoding="utf-8")
+    function_words = []
+
+    for word in f:
+        word = word.strip() # remove the newline at the end
+        function_words.append(word)
+
+    ret = {}
+
+    for word in post:
+        if word in function_words:
+            if word in ret:
+                ret[word] = ret[word] + 1
+            else:
+                ret[word] = 1
 
     return ret
 

@@ -37,6 +37,7 @@ def get_test_members():
         curr_member = Member(IdMember = IdMember, Database = Database)
         test_members.append(curr_member)
 
+    # TODO remove this limit
     return test_members[:10]
 
 
@@ -58,12 +59,6 @@ if __name__ == "__main__":
     psql_interface = Postgres_interface()
     psql_interface.start_server()
 
-    features = {}
-    feat_type = "bow"
-    use_presence = False
-    n = 5
-    posts_args = (feat_type, use_presence, n)
-
     # create a list of 1000 users with a lot of posts
     # For each one of them, split the number of posts they've written into 2 and 
     # create 2 fake users
@@ -76,16 +71,22 @@ if __name__ == "__main__":
         post_portion = len(posts) // fake_members_per_member
 
         for i in range(fake_members_per_member):
-            fake_member = Member()
+            fake_member = Member(IdMember = member.IdMember * 1000 + i + 1, Database=member.Database)
             fake_member.Manual_Posts += posts[i * post_portion : (i+1) * post_portion]
             fake_members.append(fake_member)
 
     # Group them into 333 groups of 6 users each (2 users left on the side)
     # The program should find that each group has 3 users instead of 6
     fake_group_size = 6
+    # this will also create, at the end of the list, a cluster that may have fewer members than fake_group_size
     clusters = [fake_members[i : i + fake_group_size] for i in range(0, len(fake_members), fake_group_size)]
 
-    get_suspects(method = "cop_k_means", 
+    feat_type = "function_words_bow"
+    use_presence = False
+    n = 5
+    posts_args = (feat_type, use_presence, n)
+
+    get_suspects(method = "intuitive", 
                  clusters = clusters, 
                  psql_interface = psql_interface, 
                  posts_args = posts_args, 

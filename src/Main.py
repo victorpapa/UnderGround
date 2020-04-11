@@ -350,8 +350,6 @@ if __name__ == "__main__":
     # pi.stop_server()
 
 
-
-    # TODO stem words
     # TODO add more features (function words in res)
 
     

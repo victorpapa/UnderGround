@@ -1,6 +1,6 @@
 import os
 import logging
-from Utils import timestamped, get_bow, get_n_grams, freq_to_pres, fill_feature_dict, normalise_feature_vector, get_dist, get_dict_keys, get_dict_values, get_strongly_connected_components_count
+from Utils import timestamped, get_bow, get_n_grams, get_function_words_bow, freq_to_pres, fill_feature_dict, normalise_feature_vector, get_dist, get_dict_keys, get_dict_values, get_strongly_connected_components_count
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, silhouette_samples
 from copkmeans.cop_kmeans import cop_kmeans
@@ -9,6 +9,7 @@ import matplotlib.cm as cm
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
+from nltk.stem import PorterStemmer
 
 
 # returns the dictionary of features for the given post
@@ -17,8 +18,16 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
     ret = {}
 
     text = post.Content
+
     # have to provide a list of tokens to the get_bow and get_n_grams methods
     text = text.split()
+
+    # stemming words
+    # TODO see if it works
+    ps = PorterStemmer()
+    for i in range(len(text)):
+        text[i] = ps.stem(text[i])
+    del ps
 
     if feature == "bow":
         feat_dict = get_bow(text)
@@ -26,6 +35,8 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
         if n == 1: 
             logging.warning(timestamped("Did you forget to set n when querying n_grams?"))
         feat_dict = get_n_grams(text, n)
+    elif feature == "function_words_bow":
+        feat_dict = get_function_words_bow(text)
     else:
         logging.critical(timestamped("Feature type " + feature + " not implemented."))
 
@@ -46,10 +57,10 @@ def get_features_dict_written_by(member, psql_interface, feature, presence, n, t
     ret_aggregate = {}
     ret_per_post = {}
 
+    # TODO keep getting memory errors if number of posts is not limited
     if testing == False:
-        posts = psql_interface.get_posts_from(member)
+        posts = psql_interface.get_posts_from(member)[:100]
     else:
-        # TODO keep getting memory errors if number of posts is not limited
         posts = member.Manual_Posts[:100]
 
     for post in posts:
