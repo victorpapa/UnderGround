@@ -30,6 +30,7 @@ class Member:
         self.LastPostDate     = LastPostDate # timestamp with time zone
         self.FirstPostDate    = FirstPostDate # timestamp with time zone
         self.Database         = Database # I introduced this field to remember the origin of the member as the name of the db
+        self.Manual_Posts     = [] # for testing purposes
 
     def is_active(self):
         if is_longer_than(self.LastVisitDue, 30):

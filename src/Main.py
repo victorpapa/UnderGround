@@ -209,19 +209,25 @@ def persist_metadata(all_members, active_members, psql_interface):
 def write_posts_avg_max(active_members, psql_interface):
     max_posts = 0
     active_post_avg = 0
+    best_members = {}
     for active_member in active_members:
         # TODO should I store posts in Data or not?
         active_member_posts = psql_interface.get_posts_from(member = active_member)
 
-        for p in active_member_posts:
-            print(p.Content)
-
         active_post_avg += len(active_member_posts)
+        best_members[active_member] = len(active_member_posts)
+
         if len(active_member_posts) > max_posts:
             max_posts = len(active_member_posts)
+            best_member = active_member
+
     active_post_avg /= len(active_members)
     logging.debug(timestamped("The average number of posts for the active users is " + str(active_post_avg)))
     logging.debug(timestamped("The maximum number of posts for the active users is " + str(max_posts)))
+    
+    best_members = {k: v for k, v in sorted(best_members.items(), key=lambda item: item[1], reverse=True)}
+    for member in best_members:
+        logging.info(str(member.IdMember) + " " + member.Database + " " + str(best_members[member]))
 
 def write_csv_data(similar_dbs_dict, similar_usernames_tuples_global, active_members):
     # sorts dictionary by the 2nd component (index 1) of each item in descending order
@@ -264,6 +270,8 @@ def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface)
     if active_post_avg == True:
         write_posts_avg_max(active_members = active_members,
                             psql_interface = psql_interface)
+    
+    exit()
     
 
     similar_usernames_tuples_global, similar_dbs_dict = get_similar_usernames_and_dbs(active_members, 
@@ -327,14 +335,14 @@ if __name__ == "__main__":
 
     # another sol which is even better, and is implemented in this code (Postgres_interface.py),
     # is to sort them alphabetically and get the first few from each database
-    similar_usernames_dict, df = retrieve_similarity_graph(limit = 10000, 
+    similar_usernames_dict, df = retrieve_similarity_graph(limit = 1000, 
                                                            write_csv = True,
                                                            active_post_avg = True, 
                                                            psql_interface = pi)
     # clusters will be a list of lists of Member objects
     clusters = get_member_clusters(similar_usernames_dict = similar_usernames_dict, df = df)
 
-    # ---------------------------
+    # --------------------------- #
 
     get_suspects("k_means")
 
@@ -343,6 +351,7 @@ if __name__ == "__main__":
 
 
 
-
+    # TODO stem words
+    # TODO add more features (function words in res)
 
     

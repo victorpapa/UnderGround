@@ -41,12 +41,16 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
 # feature is a String, which is the type of feature we want to analyse (BoW, N-grams etc.)
 # n is for n-grams
 # presence is for whether we want feeature presence or not
-def get_features_dict_written_by(member, psql_interface, feature, presence, n):
+def get_features_dict_written_by(member, psql_interface, feature, presence, n, testing):
 
     ret_aggregate = {}
     ret_per_post = {}
 
-    posts = psql_interface.get_posts_from(member)
+    if testing == False:
+        posts = psql_interface.get_posts_from(member)
+    else:
+        # TODO keep getting memory errors if number of posts is not limited
+        posts = member.Manual_Posts[:100]
 
     for post in posts:
 
@@ -71,7 +75,7 @@ def get_features_dict_written_by(member, psql_interface, feature, presence, n):
 
     return ret_aggregate, ret_per_post
 
-def get_member_dicts_from_cluster(cluster, psql_interface, posts_args):
+def get_member_dicts_from_cluster(cluster, psql_interface, posts_args, testing):
 
     feat_type = posts_args[0]
     use_presence = posts_args[1]
@@ -92,7 +96,8 @@ def get_member_dicts_from_cluster(cluster, psql_interface, posts_args):
                                                                                     psql_interface = psql_interface, 
                                                                                     feature = feat_type, 
                                                                                     presence = use_presence,
-                                                                                    n = n)
+                                                                                    n = n, 
+                                                                                    testing = testing)
 
         member_aggr_dicts[member] = member_aggr_feat_dict
         member_per_post_dicts[member] = member_per_post_feat_dict
@@ -195,18 +200,6 @@ def get_suspects_intuitively(cluster, member_aggr_dicts, member_per_post_dicts):
     # In this case, I want the program to output 2 components, rather than 1
     cc = get_strongly_connected_components_count(suspects)
     logging.info(timestamped("This cluster thus forms " + str(cc) + " strongly connected subclusters of suspects.\n"))
-
-
-def persist_feature_matrix(feature_matrix):
-    feat_matrix_file = os.path.join("..", *["res", "feature_matrix.txt"])
-    feat_matrix_file_handler = open(feat_matrix_file, "w+", encoding="utf-8")
-
-    for line in feature_matrix:
-        for number in line[:-1]:
-            feat_matrix_file_handler.write(str(number) + "\t")
-        feat_matrix_file_handler.write(str(line[-1]) + "\n")
-    
-    feat_matrix_file_handler.close()
 
 def plot_results(wcss, sil_avgs):
 
@@ -362,19 +355,19 @@ def get_suspects_k_means(cluster, feature_matrix, reduce_dim):
 
     plot_results(wcss = wcss, sil_avgs = sil_avgs)
 
-def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components):
+def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components, testing):
 
     if dim_reduction == "pca":
         reducer = PCA(n_components = n_components)
     elif dim_reduction == "tsne":
         reducer = TSNE(n_components = n_components)
-    
     for cluster in clusters:
 
         # member_aggr_dicts is not used in this method
         member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster, 
                                                                                  psql_interface = psql_interface,
-                                                                                 posts_args = posts_args)
+                                                                                 posts_args = posts_args,
+                                                                                 testing = testing)
 
         feature_matrix = []
         for member in member_per_post_dicts:
@@ -388,10 +381,6 @@ def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, dim_r
         sorted_keys = sorted(get_dict_keys(feature_matrix[0]))
 
         feature_matrix = [[post_dict[key] for key in sorted_keys] for post_dict in feature_matrix]
-
-        # TODO only persist one feature matrix (just for one cluster), otherwise it will just keep
-        # getting overwritten
-        persist_feature_matrix(feature_matrix)
 
         if reduce_dim == True:
             feature_matrix = reducer.fit_transform(feature_matrix)
