@@ -6,7 +6,7 @@ import regex
 from Utils import get_dict_keys, get_dict_values
 
 if __name__ == "__main__":
-    os.chdir(os.path.join("..", *["res", "Members_metadata"]))
+    os.chdir(os.path.join("..", *["out", "Members_metadata"]))
     metadata_files = os.listdir(os.getcwd())
 
     age = {}

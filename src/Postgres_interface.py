@@ -388,7 +388,7 @@ class Postgres_interface:
 
 # initialising the logging file and setting the correct working directory
 def init_env():
-    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\res")
+    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\log")
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     logger_handler = logging.FileHandler("log_psql_interface.txt", "w")

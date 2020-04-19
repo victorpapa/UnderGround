@@ -28,7 +28,7 @@ def get_test_members():
     # test_members.append(curr_member)
     # # first and last are the same real person, so the real number of clusters ***should be*** total-1
 
-    test_members_file = os.path.join("..", *["res", "best_members.txt"])
+    test_members_file = os.path.join("..", *["out", "best_members.txt"])
     f = open(test_members_file, "r", encoding="utf-8")
     for line in f:
         line = line.split()
@@ -43,7 +43,7 @@ def get_test_members():
 
 # initialising the logging file and setting the correct working directory
 def init_env():
-    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\res")
+    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\log")
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     logger_handler = logging.FileHandler("log_evaluator.txt", "w", encoding="utf-8")

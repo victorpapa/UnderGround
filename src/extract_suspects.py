@@ -1,12 +1,13 @@
 import os
 
 if __name__ == "__main__":
-    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\res")
+    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\log")
     
     log_file_name = "log_main.txt"
     log_file_path = os.path.join(os.getcwd(), log_file_name)
     log_file_handler = open(log_file_path, "r", encoding="utf-8")
 
+    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\out")
     suspects_file_name = "suspects.txt"
     suspects_file_path = os.path.join(os.getcwd(), suspects_file_name)
     suspects_file_handler = open(suspects_file_path, "w+", encoding="utf-8")

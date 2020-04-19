@@ -196,13 +196,13 @@ def persist_metadata(all_members, active_members, psql_interface):
 
     # ---------------------------------------------------------------------- #
 
-    metadata_file_name = os.path.join("..", *["res", "Members_metadata", "all_members_metadata.txt"])
+    metadata_file_name = os.path.join("..", *["out", "Members_metadata", "all_members_metadata.txt"])
     metadata_file_handler = open(metadata_file_name, "w+", encoding = "utf-8")
     write_metadata(metadata_file_handler, all_members_metadata)
     metadata_file_handler.close()
 
     # ----------------------------------------------------------------------#
-    metadata_file_name = os.path.join("..", *["res", "Members_metadata", "active_members_metadata.txt"])
+    metadata_file_name = os.path.join("..", *["out", "Members_metadata", "active_members_metadata.txt"])
     metadata_file_handler = open(metadata_file_name, "w+", encoding = "utf-8")
     write_metadata(metadata_file_handler, active_members_metadata)
     metadata_file_handler.close()
@@ -238,8 +238,8 @@ def write_csv_data(similar_dbs_dict, similar_usernames_tuples_global, active_mem
     similar_dbs_file = "..\\res\\similar_dbs.txt"
     write_dict_to_file(similar_dbs_dict, similar_dbs_file)
 
-    edges_csv_file = open("..\\res\\similar_usernames_edges.csv", "w", encoding = "utf-8")
-    nodes_csv_file = open("..\\res\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
+    edges_csv_file = open("..\\out\\similar_usernames_edges.csv", "w", encoding = "utf-8")
+    nodes_csv_file = open("..\\out\\similar_usernames_nodes.csv", "w", encoding = "utf-8")
     create_edge_table_csv(edges_csv_file, similar_usernames_tuples_global)
     create_nodes_table_csv(nodes_csv_file, active_members)
     edges_csv_file.close()
