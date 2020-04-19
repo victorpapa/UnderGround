@@ -109,7 +109,9 @@ def get_member_dicts_from_cluster(cluster, psql_interface, posts_args, testing):
                                                                                     presence = use_presence,
                                                                                     n = n, 
                                                                                     testing = testing)
-
+        if len(member_aggr_feat_dict) == 0:
+            continue
+            
         member_aggr_dicts[member] = member_aggr_feat_dict
         member_per_post_dicts[member] = member_per_post_feat_dict
 
@@ -144,7 +146,7 @@ def get_member_dicts_from_cluster(cluster, psql_interface, posts_args, testing):
 
 # only correctly identifies (really) tight clusters
 # works 50% of the time (by chance) with groups of 2 users
-def get_suspects_intuitively(cluster, member_aggr_dicts, member_per_post_dicts):
+def get_suspects_intuitively(member_aggr_dicts, member_per_post_dicts):
 
     suspects = {}
 
@@ -211,6 +213,8 @@ def get_suspects_intuitively(cluster, member_aggr_dicts, member_per_post_dicts):
     # In this case, I want the program to output 2 components, rather than 1
     cc = get_strongly_connected_components_count(suspects)
     logging.info(timestamped("This cluster thus forms " + str(cc) + " strongly connected subclusters of suspects.\n"))
+
+    return cc
 
 def plot_results(wcss, sil_avgs):
 
@@ -307,14 +311,15 @@ def plot_silhouettes_and_posts(n_clusters, feature_matrix, centers, labels, sil_
 # TODO cite this library
 # https://github.com/Behrouz-Babaki/COP-Kmeans
 # it appears that the differences between the wcss of clusters is lower here than without contraints
-def get_suspects_constrained_k_means(cluster, feature_matrix, member_per_post_dicts, reduce_dim):
-
-    suspect_count = len(cluster)
+def get_suspects_constrained_k_means(suspect_count, feature_matrix, member_per_post_dicts, reduce_dim, plot):
 
     must_link = []
     cannot_link = []
     wcss = []
     sil_avgs = []
+
+    most_likely_k = 0
+    max_sil_avg = 0
 
     populate_must_link(must_link, member_per_post_dicts)
 
@@ -330,23 +335,35 @@ def get_suspects_constrained_k_means(cluster, feature_matrix, member_per_post_di
 
         wcss.append(current_wcss)
 
-        if n_clusters >= 2:
+        if n_clusters >= 2 and n_clusters <= len(feature_matrix) - 1:
             labels = np.array(k_clusters)
             sil_avg = silhouette_score(feature_matrix, labels, metric = "euclidean")
             sil_avgs.append(sil_avg)
 
+            if sil_avg > max_sil_avg:
+                max_sil_avg = sil_avg
+                most_likely_k = n_clusters
+
             # required by some code in plot_silhouettes_and_posts()
             k_centers = np.array(k_centers)
 
-            plot_silhouettes_and_posts(n_clusters, feature_matrix, k_centers, labels, sil_avg, reduce_dim)
-            
-    plot_results(wcss = wcss, sil_avgs = sil_avgs)
+            if plot == True:
+                plot_silhouettes_and_posts(n_clusters, feature_matrix, k_centers, labels, sil_avg, reduce_dim)
 
-def get_suspects_k_means(cluster, feature_matrix, reduce_dim):
+    if plot == True:      
+        plot_results(wcss = wcss, sil_avgs = sil_avgs)
 
-    suspect_count = len(cluster)
+    logging.info("This group most likely has %d subclusters of real users.\n" % most_likely_k)
+
+    return most_likely_k
+
+def get_suspects_k_means(suspect_count, feature_matrix, reduce_dim, plot):
+
     wcss = []
     sil_avgs = []
+
+    most_likely_k = 0
+    max_sil_avg = 0
 
     for n_clusters in range(1, suspect_count + 1):
         k_means = KMeans(n_clusters = n_clusters, 
@@ -362,23 +379,54 @@ def get_suspects_k_means(cluster, feature_matrix, reduce_dim):
             sil_avg = silhouette_score(feature_matrix, labels, metric = "euclidean")
             sil_avgs.append(sil_avg)
 
-            plot_silhouettes_and_posts(n_clusters, feature_matrix, k_means.cluster_centers_, labels, sil_avg, reduce_dim)
+            if sil_avg > max_sil_avg:
+                max_sil_avg = sil_avg
+                most_likely_k = n_clusters
 
-    plot_results(wcss = wcss, sil_avgs = sil_avgs)
+            if plot == True:
+                plot_silhouettes_and_posts(n_clusters, feature_matrix, k_means.cluster_centers_, labels, sil_avg, reduce_dim)
 
-def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, dim_reduction, n_components, testing):
+    if plot == True:
+        plot_results(wcss = wcss, sil_avgs = sil_avgs)
+
+    logging.info("This group most likely has %d subclusters of real users.\n" % most_likely_k)
+
+    return most_likely_k
+
+# TODO create dendogram technique (hierarchical clustering)
+def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, plot, dim_reduction, n_components, testing):
+
+    to_ret = {}
 
     if dim_reduction == "pca":
         reducer = PCA(n_components = n_components)
     elif dim_reduction == "tsne":
         reducer = TSNE(n_components = n_components)
-    for cluster in clusters:
+    for i in range(len(clusters)):
+
+        cluster = clusters[i]
 
         # member_aggr_dicts is not used in this method
         member_aggr_dicts, member_per_post_dicts = get_member_dicts_from_cluster(cluster = cluster, 
                                                                                  psql_interface = psql_interface,
                                                                                  posts_args = posts_args,
                                                                                  testing = testing)
+
+        # during the previous method, it may be the case that some member(s) have no features at all
+        # I have discovered this when using function words.
+        # This means that the size of the cluster will no longer be the correct limit for the number of 
+        # possible subclusters. Instead, use the size of member_aggr_dicts. It ignores users with no features
+        # Also, it's possible that no member in this cluster has any features. In that case, just say
+        # you cannot analyse this cluster
+
+        suspect_count = len(member_aggr_dicts)
+
+        if suspect_count == 0:
+            logging.debug(timestamped("Cannot analyse this cluster, it doesn't have any features.\n"))
+            continue
+        elif suspect_count == 1:
+            logging.debug(timestamped("There is only 1 user with features in this cluster. Moving on to the next one...\n"))
+            continue
 
         feature_matrix = []
         for member in member_per_post_dicts:
@@ -396,11 +444,18 @@ def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, dim_r
         if reduce_dim == True:
             feature_matrix = reducer.fit_transform(feature_matrix)
 
+        # TODO see if the plots can be saved somewhere in res\ instead of being immediately displayed
+        # on the screen after process finishes executing
+
         if method == "intuitive":
-            get_suspects_intuitively(cluster = cluster, member_aggr_dicts = member_aggr_dicts, member_per_post_dicts = member_per_post_dicts)
+            k = get_suspects_intuitively(member_aggr_dicts = member_aggr_dicts, member_per_post_dicts = member_per_post_dicts)
         elif method == "k_means":
-            get_suspects_k_means(cluster = cluster, feature_matrix = feature_matrix, reduce_dim = reduce_dim)
+            k = get_suspects_k_means(suspect_count = suspect_count, feature_matrix = feature_matrix, reduce_dim = reduce_dim, plot = plot)
         elif method == "cop_k_means":
-            get_suspects_constrained_k_means(cluster = cluster, feature_matrix = feature_matrix, member_per_post_dicts = member_per_post_dicts, reduce_dim = reduce_dim)
+            k = get_suspects_constrained_k_means(suspect_count = suspect_count, feature_matrix = feature_matrix, member_per_post_dicts = member_per_post_dicts, reduce_dim = reduce_dim, plot = plot)
         else:
-            print("Method not implemented.")
+            logging.error(timestamped("Method not implemented."))
+
+        to_ret[i] = k
+
+    return to_ret

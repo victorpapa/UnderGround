@@ -2,6 +2,7 @@ from Post import Post
 from Member import Member
 from suspect_detection import get_suspects
 from Postgres_interface import Postgres_interface
+from random import choice
 import os
 import logging
 
@@ -37,8 +38,7 @@ def get_test_members():
         curr_member = Member(IdMember = IdMember, Database = Database)
         test_members.append(curr_member)
 
-    # TODO remove this limit
-    return test_members[:10]
+    return test_members
 
 
 # initialising the logging file and setting the correct working directory
@@ -65,9 +65,10 @@ if __name__ == "__main__":
     # We now have 2000 fake users
     
     fake_members = []
+    fake_members_per_member = 2
+
     for member in test_members:
         posts = psql_interface.get_posts_from(member)
-        fake_members_per_member = 2
         post_portion = len(posts) // fake_members_per_member
 
         for i in range(fake_members_per_member):
@@ -75,25 +76,42 @@ if __name__ == "__main__":
             fake_member.Manual_Posts += posts[i * post_portion : (i+1) * post_portion]
             fake_members.append(fake_member)
 
-    # Group them into 333 groups of 6 users each (2 users left on the side)
-    # The program should find that each group has 3 users instead of 6
-    fake_group_size = 6
-    # this will also create, at the end of the list, a cluster that may have fewer members than fake_group_size
-    clusters = [fake_members[i : i + fake_group_size] for i in range(0, len(fake_members), fake_group_size)]
+    # Group them into n groups, each of random size between 2 and 8 inclusive
+    # The algorithm succeeds if it finds that each cluster has size(cluster) / 2 subclusters
+    # , because each account was split into 2 fake accounts
+   
+    clusters = []
+    index = 0
+
+    while index < len(fake_members):
+        curr_cluster_size = choice([6])
+        clusters.append(fake_members[index : index + curr_cluster_size])
+        index += curr_cluster_size
 
     feat_type = "function_words_bow"
     use_presence = False
     n = 5
     posts_args = (feat_type, use_presence, n)
 
-    get_suspects(method = "intuitive", 
-                 clusters = clusters, 
-                 psql_interface = psql_interface, 
-                 posts_args = posts_args, 
-                 reduce_dim = True,
-                 dim_reduction = "tsne",
-                 n_components = 2,
-                 testing = "True") # always set "testing" to True in this case
+    results = get_suspects(method = "intuitive", 
+                               clusters = clusters, 
+                               psql_interface = psql_interface, 
+                               posts_args = posts_args, 
+                               reduce_dim = True,
+                               plot = False,
+                               dim_reduction = "tsne",
+                               n_components = 2,
+                               testing = "True") # always set "testing" to True in this case
+
+    total = len(results)
+    correct_guesses = 0
+    for i in results:
+        group_size = results[i]
+        if group_size == len(clusters[i]) / fake_members_per_member:
+            correct_guesses += 1
+
+    # TODO also check that they are correct because of the correct reason
+    logging.info("Out of %s tests, %s have succesfully passed, giving the accuracy of " % (str(total), str(correct_guesses)) + "{:.2%}".format(correct_guesses / total))
 
     
 

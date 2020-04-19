@@ -21,6 +21,7 @@ class Postgres_interface:
         self.query_posts_template = "SELECT \"Timestamp\", \"Author\", \"Content\" FROM \"Post\" WHERE \"Author\" = %s;"
         self.query_members_w_posts_template = "SELECT \"Author\" FROM \"Post\" WHERE \"Author\" = %s LIMIT 1;"
         self.query_members = "SELECT \"IdMember\", \"Username\" as uname, \"LastVisitDue\", \"LastParse\" FROM \"Member\" ORDER BY uname ASC;"
+        # TODO The TotalPosts field is invalid, use the count of get_posts_from_user instead
         self.query_member_metadata = "SELECT \"Age\", \"TimeSpent\", \"Location\", \"RegistrationDate\", \"FirstPostDate\", \"LastPostDate\", \"TotalPosts\" FROM \"Member\" WHERE \"IdMember\" = %s;"
         self.ERR_STRING = "Command above failed to execute. Exiting..."
         
@@ -244,6 +245,7 @@ class Postgres_interface:
             members_file_handle = open(members_file_name, "w+", encoding="utf-8")
             self.write_member_data(members_file_handle, member_list)
             members_file_handle.close()
+            
     def sanitise_post(self, content):
 
         # given the content of a post, strips the part of the post that was not written by the author
@@ -254,6 +256,7 @@ class Postgres_interface:
         paragraphs = content.split("\n")
         QUOTE_STR = "***QUOTE***"
         CITING_STR = "***CITING***"
+        # TODO don't remove links, they may be helpful
         LINK_STR = "***LINK***"
         IMG_STR = "***IMG***"
 
@@ -331,6 +334,10 @@ class Postgres_interface:
                 pass
 
             content = self.sanitise_post(content)
+
+            # no empty posts
+            if content == "":
+                continue
 
             ret += [Post(IdPost=post_ID, Author=author_ID, Content=content)]
 

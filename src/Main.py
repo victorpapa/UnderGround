@@ -172,6 +172,7 @@ def create_members_df(members_folder, limit):
 # also returns a dictionary, mapping ecah post written by this member to its corresponding feature vector
 # ---------------------------------------------------------
 
+# TODO The TotalPosts field is invalid, use the count of get_posts_from_user instead
 def write_metadata(metadata_file_handler, members_metadata):
     for member_metadata in members_metadata:
         for metadata in member_metadata:
@@ -215,7 +216,8 @@ def write_posts_avg_max(active_members, psql_interface):
         active_member_posts = psql_interface.get_posts_from(member = active_member)
 
         active_post_avg += len(active_member_posts)
-        best_members[active_member] = len(active_member_posts)
+        if len(active_member_posts) > 10:
+            best_members[active_member] = len(active_member_posts)
 
         if len(active_member_posts) > max_posts:
             max_posts = len(active_member_posts)
@@ -271,8 +273,6 @@ def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface)
         write_posts_avg_max(active_members = active_members,
                             psql_interface = psql_interface)
     
-    exit()
-    
 
     similar_usernames_tuples_global, similar_dbs_dict = get_similar_usernames_and_dbs(active_members, 
                                                                                       max_dist = 0)
@@ -280,6 +280,7 @@ def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface)
     if write_csv == True:
         write_csv_data(similar_dbs_dict, similar_usernames_tuples_global, active_members)
 
+    exit()
 
     similar_usernames_dict_global = tuples_to_dict(similar_usernames_tuples_global)
     connected_components_count = get_connected_components_count(similar_usernames_dict_global)
@@ -310,7 +311,7 @@ def init_env():
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     logger_handler = logging.FileHandler("log_main.txt", "w", encoding="utf-8")
-    logger_handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+    logger_handler.setFormatter(logging.Formatter("%(message)s"))
     logger.addHandler(logger_handler)
     os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\src")
 
@@ -335,7 +336,7 @@ if __name__ == "__main__":
 
     # another sol which is even better, and is implemented in this code (Postgres_interface.py),
     # is to sort them alphabetically and get the first few from each database
-    similar_usernames_dict, df = retrieve_similarity_graph(limit = 1000, 
+    similar_usernames_dict, df = retrieve_similarity_graph(limit = 100000, 
                                                            write_csv = True,
                                                            active_post_avg = True, 
                                                            psql_interface = pi)
@@ -344,6 +345,7 @@ if __name__ == "__main__":
 
     # --------------------------- #
 
+    # TODO get all the suspects for the whole data set
     get_suspects("k_means")
 
     # TODO
