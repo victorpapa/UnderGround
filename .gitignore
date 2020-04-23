@@ -1,3 +1,5 @@
 /*
 !.gitignore
 !src/*.py
+!test/*.py
+!res/function_words.txt

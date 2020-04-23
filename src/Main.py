@@ -207,7 +207,7 @@ def persist_metadata(all_members, active_members, psql_interface):
     write_metadata(metadata_file_handler, active_members_metadata)
     metadata_file_handler.close()
 
-def write_posts_avg_max(active_members, psql_interface):
+def persist_best_members(active_members, psql_interface):
     max_posts = 0
     active_post_avg = 0
     best_members = {}
@@ -228,14 +228,19 @@ def write_posts_avg_max(active_members, psql_interface):
     logging.debug(timestamped("The maximum number of posts for the active users is " + str(max_posts)))
     
     best_members = {k: v for k, v in sorted(best_members.items(), key=lambda item: item[1], reverse=True)}
+
+    best_members_file = os.path.join("..", *["out", "best_members.txt"])
+    g = open(best_members_file, "w+", encoding="utf-8")
     for member in best_members:
+        g.write(str(member.IdMember) + " " + member.Database + " " + str(best_members[member]) + "\n")
         logging.info(str(member.IdMember) + " " + member.Database + " " + str(best_members[member]))
+    g.close()
 
 def write_csv_data(similar_dbs_dict, similar_usernames_tuples_global, active_members):
     # sorts dictionary by the 2nd component (index 1) of each item in descending order
     similar_dbs_dict = {k: v for k, v in sorted(similar_dbs_dict.items(), key=lambda item: item[1], reverse=True)}
 
-    similar_dbs_file = "..\\res\\similar_dbs.txt"
+    similar_dbs_file = "..\\out\\similar_dbs.txt"
     write_dict_to_file(similar_dbs_dict, similar_dbs_file)
 
     edges_csv_file = open("..\\out\\similar_usernames_edges.csv", "w", encoding = "utf-8")
@@ -250,7 +255,7 @@ def write_csv_data(similar_dbs_dict, similar_usernames_tuples_global, active_mem
 # returns the similarity graph edges as a dictionary
 # also creates and writes the database similarity file, username similarity graph csv files (edges and nodes)
 # and may also output the average and maximum number of posts written by the active users
-def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface):
+def retrieve_similarity_graph(limit, write_csv, write_best_members, psql_interface):
     # Create a csv containing a node table and an edge table for all the members described in names_path
 
     members_folder = os.path.join(os.getcwd(), *["..", "res", "Members"])
@@ -269,9 +274,9 @@ def retrieve_similarity_graph(limit, write_csv, active_post_avg, psql_interface)
 
     # ----------------------------------------------------------------------#
 
-    if active_post_avg == True:
-        write_posts_avg_max(active_members = active_members,
-                            psql_interface = psql_interface)
+    if write_best_members == True:
+        persist_best_members(active_members = active_members,
+                           psql_interface = psql_interface)
     
 
     similar_usernames_tuples_global, similar_dbs_dict = get_similar_usernames_and_dbs(active_members, 
@@ -307,7 +312,7 @@ def get_member_clusters(similar_usernames_dict, df):
 
 # initialising the logging file and setting the correct working directory
 def init_env():
-    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\res")
+    os.chdir("D:\\Program Files (x86)\\Courses II\\Dissertation\\log")
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     logger_handler = logging.FileHandler("log_main.txt", "w", encoding="utf-8")
@@ -336,9 +341,9 @@ if __name__ == "__main__":
 
     # another sol which is even better, and is implemented in this code (Postgres_interface.py),
     # is to sort them alphabetically and get the first few from each database
-    similar_usernames_dict, df = retrieve_similarity_graph(limit = 100000, 
+    similar_usernames_dict, df = retrieve_similarity_graph(limit = 0, 
                                                            write_csv = True,
-                                                           active_post_avg = True, 
+                                                           write_best_members = True, 
                                                            psql_interface = pi)
     # clusters will be a list of lists of Member objects
     clusters = get_member_clusters(similar_usernames_dict = similar_usernames_dict, df = df)

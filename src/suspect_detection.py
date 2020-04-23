@@ -308,7 +308,6 @@ def plot_silhouettes_and_posts(n_clusters, feature_matrix, centers, labels, sil_
     ax2.set_xlabel("Feature space for the 1st feature")
     ax2.set_ylabel("Feature space for the 2nd feature")
 
-# TODO cite this library
 # https://github.com/Behrouz-Babaki/COP-Kmeans
 # it appears that the differences between the wcss of clusters is lower here than without contraints
 def get_suspects_constrained_k_means(suspect_count, feature_matrix, member_per_post_dicts, reduce_dim, plot):
@@ -422,10 +421,10 @@ def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, plot,
         suspect_count = len(member_aggr_dicts)
 
         if suspect_count == 0:
-            logging.debug(timestamped("Cannot analyse this cluster, it doesn't have any features.\n"))
+            logging.debug(timestamped("Cannot analyse this cluster. It doesn't have any features.\n"))
             continue
         elif suspect_count == 1:
-            logging.debug(timestamped("There is only 1 user with features in this cluster. Moving on to the next one...\n"))
+            logging.debug(timestamped("Cannot analyse this cluster. There is only 1 user with features in this cluster.\n"))
             continue
 
         feature_matrix = []

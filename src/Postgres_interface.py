@@ -134,7 +134,7 @@ class Postgres_interface:
         self.id_member = 0
         
         # set this to True whenever you want members with the same username to be considered different members
-        same_username_diff_member = False   
+        same_username_diff_member = True   
         
         for db_name in self.db_names:
             # initially connected to db "postgres", so can safely close connection
@@ -150,9 +150,7 @@ class Postgres_interface:
                 exit()
 
             member_list = []
-            if same_username_diff_member:
-                username_list = []
-            else:
+            if not same_username_diff_member:
                 username_set = set()
 
             ref_date = "None"
@@ -233,8 +231,6 @@ class Postgres_interface:
                         member_list += [(member_ID, member_name, db_name, elapsed_time)]
                     else:
                         logging.warning(timestamped("Ignored " + member_name + ". Already seen in this database: " + db_name))
-                else:
-                    username_list += [member_name]
 
                     # how long has this user been inactive for? (time since last log in)
                     elapsed_time = get_time_diff(last_parse_date, last_visit_date)
