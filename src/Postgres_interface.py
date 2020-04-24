@@ -231,7 +231,7 @@ class Postgres_interface:
                         member_list += [(member_ID, member_name, db_name, elapsed_time)]
                     else:
                         logging.warning(timestamped("Ignored " + member_name + ". Already seen in this database: " + db_name))
-
+                else:
                     # how long has this user been inactive for? (time since last log in)
                     elapsed_time = get_time_diff(last_parse_date, last_visit_date)
                     # add this member to the list of members
