@@ -191,15 +191,26 @@ def write_metadata(metadata_file_handler, members_metadata):
 # a member that is because __run_command returns a list of tuples, each tuple representing a row 
 # in the output of the command that was run by PSQL
 def persist_metadata(all_members, active_members, psql_interface):
-    all_members_metadata = psql_interface.get_members_metadata(all_members)
-    active_members_metadata = psql_interface.get_members_metadata(active_members)
+    # all_members_metadata = []
+    # for i in range((len(all_members) + 99) // 100):
+    #     curr_metadata = psql_interface.get_members_metadata(all_members[100 * i : 100 * (i+1)])
+    #     all_members_metadata += curr_metadata
+    #     print(str((i+1) * 100 * 100 / len(all_members)) + "%")
+    # all_members_metadata = psql_interface.get_members_metadata(all_members)
+
+    active_members_metadata = []
+    for i in range((len(active_members) + 99) // 100):
+        curr_metadata = psql_interface.get_members_metadata(active_members[100 * i : 100 * (i+1)])
+        active_members_metadata += curr_metadata
+        print(str((i+1) * 100 * 100 / len(active_members)) + "%")
+    # active_members_metadata = psql_interface.get_members_metadata(active_members)
 
     # ---------------------------------------------------------------------- #
 
-    metadata_file_name = os.path.join("..", *["out", "Members_metadata", "all_members_metadata.txt"])
-    metadata_file_handler = open(metadata_file_name, "w+", encoding = "utf-8")
-    write_metadata(metadata_file_handler, all_members_metadata)
-    metadata_file_handler.close()
+    # metadata_file_name = os.path.join("..", *["out", "Members_metadata", "all_members_metadata.txt"])
+    # metadata_file_handler = open(metadata_file_name, "w+", encoding = "utf-8")
+    # write_metadata(metadata_file_handler, all_members_metadata)
+    # metadata_file_handler.close()
 
     # ----------------------------------------------------------------------#
     metadata_file_name = os.path.join("..", *["out", "Members_metadata", "active_members_metadata.txt"])
@@ -211,9 +222,14 @@ def persist_best_members(active_members, psql_interface):
     max_posts = 0
     active_post_avg = 0
     best_members = {}
+    index = 0
     for active_member in active_members:
-        # TODO should I store posts in Data or not?
+
         active_member_posts = psql_interface.get_posts_from(member = active_member)
+        index += 1
+
+        if index % 100 == 0:
+            print(str(index * 100 / len(active_members)) + "%")
 
         active_post_avg += len(active_member_posts)
         if len(active_member_posts) > 10:

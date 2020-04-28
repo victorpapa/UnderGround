@@ -1,6 +1,6 @@
 import os
 import logging
-from Utils import timestamped, get_bow, get_n_grams, get_function_words_bow, freq_to_pres, fill_feature_dict, normalise_feature_vector, get_dist, get_dict_keys, get_dict_values, get_strongly_connected_components_count
+from Utils import timestamped, get_bow, get_n_grams, get_function_words_bow, freq_to_pres, fill_feature_dict, normalise_feature_vector, get_dist, get_dict_keys, get_dict_values, get_strongly_connected_components
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, silhouette_samples
 from copkmeans.cop_kmeans import cop_kmeans
@@ -211,10 +211,19 @@ def get_suspects_intuitively(member_aggr_dicts, member_per_post_dicts):
     #  o < - - - - - - - - - - /
 
     # In this case, I want the program to output 2 components, rather than 1
-    cc = get_strongly_connected_components_count(suspects)
-    logging.info(timestamped("This cluster thus forms " + str(cc) + " strongly connected subclusters of suspects.\n"))
+    
+    scc = get_strongly_connected_components(suspects)
+    labels = {}
+    logging.info(timestamped("This cluster thus forms " + str(len(scc)) + " strongly connected subclusters of suspects.\n"))
 
-    return cc
+    for member in suspects:
+        for i in range(len(scc)):
+            curr_component = scc[i]
+            if member in curr_component:
+                labels[member] = i
+                break
+
+    return len(scc), labels
 
 def plot_results(wcss, sil_avgs):
 
@@ -342,6 +351,7 @@ def get_suspects_constrained_k_means(suspect_count, feature_matrix, member_per_p
             if sil_avg > max_sil_avg:
                 max_sil_avg = sil_avg
                 most_likely_k = n_clusters
+                most_likely_post_labels = labels
 
             # required by some code in plot_silhouettes_and_posts()
             k_centers = np.array(k_centers)
@@ -354,7 +364,15 @@ def get_suspects_constrained_k_means(suspect_count, feature_matrix, member_per_p
 
     logging.info("This group most likely has %d subclusters of real users.\n" % most_likely_k)
 
-    return most_likely_k
+    most_likely_member_labels = {}
+    post_index = 0
+    for member in member_per_post_dicts:
+        num_of_posts = len(member_per_post_dicts[member])
+        most_likely_member_labels[member] = labels[post_index]
+        post_index += num_of_posts
+    
+
+    return most_likely_k, most_likely_member_labels
 
 def get_suspects_k_means(suspect_count, feature_matrix, reduce_dim, plot):
 
@@ -381,6 +399,7 @@ def get_suspects_k_means(suspect_count, feature_matrix, reduce_dim, plot):
             if sil_avg > max_sil_avg:
                 max_sil_avg = sil_avg
                 most_likely_k = n_clusters
+                most_likely_clusters = labels
 
             if plot == True:
                 plot_silhouettes_and_posts(n_clusters, feature_matrix, k_means.cluster_centers_, labels, sil_avg, reduce_dim)
@@ -390,7 +409,7 @@ def get_suspects_k_means(suspect_count, feature_matrix, reduce_dim, plot):
 
     logging.info("This group most likely has %d subclusters of real users.\n" % most_likely_k)
 
-    return most_likely_k
+    return most_likely_k, most_likely_clusters
 
 # TODO create dendogram technique (hierarchical clustering)
 def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, plot, dim_reduction, n_components, testing):
@@ -447,14 +466,15 @@ def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, plot,
         # on the screen after process finishes executing
 
         if method == "intuitive":
-            k = get_suspects_intuitively(member_aggr_dicts = member_aggr_dicts, member_per_post_dicts = member_per_post_dicts)
+            k, labels = get_suspects_intuitively(member_aggr_dicts = member_aggr_dicts, member_per_post_dicts = member_per_post_dicts)
         elif method == "k_means":
             k = get_suspects_k_means(suspect_count = suspect_count, feature_matrix = feature_matrix, reduce_dim = reduce_dim, plot = plot)
+            labels = None
         elif method == "cop_k_means":
-            k = get_suspects_constrained_k_means(suspect_count = suspect_count, feature_matrix = feature_matrix, member_per_post_dicts = member_per_post_dicts, reduce_dim = reduce_dim, plot = plot)
+            k, labels = get_suspects_constrained_k_means(suspect_count = suspect_count, feature_matrix = feature_matrix, member_per_post_dicts = member_per_post_dicts, reduce_dim = reduce_dim, plot = plot)
         else:
             logging.error(timestamped("Method not implemented."))
 
-        to_ret[i] = k
+        to_ret[i] = (k, labels)
 
     return to_ret

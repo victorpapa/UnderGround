@@ -457,6 +457,46 @@ def get_connected_components(edges):
 
     return total
 
+# given a dictionary representing an undirected graph, obtain the strongly connected components
+# edges is an edge table for an unweighted graph, e.g. source -> [target, target, ...]
+def get_strongly_connected_components(edges):
+
+    total = []
+    visited = {}
+    stack = deque()
+
+    for node in edges:
+        visited[node] = False
+
+    for node in edges:
+        if not visited[node]:
+            visit_stack(node, edges, visited, stack)
+
+    edges_transpose = {}
+    for node in edges:
+        # TODO does this affect the functionality? add 2 more tests pls
+        if node not in edges_transpose:
+            edges_transpose[node] = []
+
+        for neighbor in edges[node]:
+            if neighbor in edges_transpose:
+                edges_transpose[neighbor] += [node]
+            else:
+                edges_transpose[neighbor] = [node]
+
+    visited = {}
+    for node in edges:
+        visited[node] = False
+
+    while len(stack) > 0:
+        top_node = stack.pop()
+
+        if not visited[top_node]:
+            scc = []
+            get_current_strongly_connected_component(top_node, edges_transpose, visited, scc)
+            total += [scc]
+    
+    return total
 
 if __name__ == "__main__":
 

@@ -21,8 +21,8 @@ class Postgres_interface:
         self.query_posts_template = "SELECT \"Timestamp\", \"Author\", \"Content\" FROM \"Post\" WHERE \"Author\" = %s;"
         self.query_members_w_posts_template = "SELECT \"Author\" FROM \"Post\" WHERE \"Author\" = %s LIMIT 1;"
         self.query_members = "SELECT \"IdMember\", \"Username\" as uname, \"LastVisitDue\", \"LastParse\" FROM \"Member\" ORDER BY uname ASC;"
-        # TODO The TotalPosts field is invalid, use the count of get_posts_from_user instead
-        self.query_member_metadata = "SELECT \"Age\", \"TimeSpent\", \"Location\", \"RegistrationDate\", \"FirstPostDate\", \"LastPostDate\", \"TotalPosts\" FROM \"Member\" WHERE \"IdMember\" = %s;"
+
+        self.query_member_metadata = "SELECT \"Age\", \"TimeSpent\", \"Location\", \"RegistrationDate\", \"FirstPostDate\", \"LastPostDate\" FROM \"Member\" WHERE \"IdMember\" = %s;"
         self.ERR_STRING = "Command above failed to execute. Exiting..."
         
     def __fetch_psql_pass(self):

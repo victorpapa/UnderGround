@@ -55,7 +55,7 @@ if __name__ == "__main__":
         post_portion = len(posts) // fake_members_per_member
 
         for i in range(fake_members_per_member):
-            fake_member = Member(IdMember = member.IdMember * 1000 + i + 1, Database=member.Database)
+            fake_member = Member(IdMember = member.IdMember * 100000 + i + 1, Database=member.Database)
             fake_member.Manual_Posts += posts[i * post_portion : (i+1) * post_portion]
             fake_members.append(fake_member)
 
@@ -94,13 +94,87 @@ if __name__ == "__main__":
     total = len(results)
     correct_guesses = 0
     for i in results:
-        group_size = results[i]
+        group_size, group_labels = results[i]
         if group_size == len(clusters[i]) / fake_members_per_member:
             correct_guesses += 1
 
     # TODO also check that they are correct because of the correct reason
     logging.info("Out of %s tests, %s have succesfully passed, giving the accuracy of " % (str(total), str(correct_guesses)) + "{:.2%}".format(correct_guesses / total))
 
-    
+    mean_accuracy = 0
+    mean_precision = 0
+    mean_recall = 0
+    mean_f1_measure = 0
+
+    member_index = 0
+    for test_index, cluster in enumerate(clusters):
+        group_size, group_labels = results[test_index]
+
+        # in the case of K-means can't calculate precision, recall, f1-measure
+        if group_labels == None:
+            break
+        tp = 0
+        tn = 0
+        fp = 0
+        fn = 0
+
+        for i in range(len(group_labels) - 1):
+            for j in range(i + 1, len(group_labels)):
+                member_A = list(group_labels.keys())[i]
+                member_B = list(group_labels.keys())[j]
+
+                # actual class is yes
+                if member_A.IdMember // 100000 == member_B.IdMember // 100000:
+                    # predicted class is yes
+                    if group_labels[member_A] == group_labels[member_B]:
+                        tp += 1
+                    # predicted class is no
+                    else:
+                        fn += 1
+                # actual class is no
+                else:
+                    # predicted class is yes
+                    if group_labels[member_A] == group_labels[member_B]:
+                        fp += 1
+                    # predicted class is no
+                    else:
+                        tn += 1
+
+        # TODO calculate accuracy, precision, recall, f1_measure
+        try:
+            accuracy = (tp + tn) / (tp + fp + fn + tn)
+        except:
+            accuracy = 0
+        
+        try:
+            precision = tp / (tp + fp)
+        except:
+            precision = 0
+
+        try:
+            recall = tp / (tp + fn)
+        except:
+            recall = 0
+        
+        try:
+            f1_measure = 2 * (precision * recall) / (recall + precision)
+        except:
+            f1_measure = 0
+
+        print(str(accuracy) + " " + str(precision) + " " + str(recall) + " " + str(f1_measure))
+
+        mean_accuracy += accuracy
+        mean_precision += precision
+        mean_recall += recall
+        mean_f1_measure += f1_measure
+
+    mean_accuracy /= len(clusters)
+    mean_precision /= len(clusters)
+    mean_recall /= len(clusters)
+    mean_f1_measure /= len(clusters)
+
+    print(str(mean_accuracy) + " " + str(mean_precision) + " " + str(mean_recall) + " " + str(mean_f1_measure))
+
+        
 
     
