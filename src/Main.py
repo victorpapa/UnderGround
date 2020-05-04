@@ -271,7 +271,7 @@ def write_csv_data(similar_dbs_dict, similar_usernames_tuples_global, active_mem
 # returns the similarity graph edges as a dictionary
 # also creates and writes the database similarity file, username similarity graph csv files (edges and nodes)
 # and may also output the average and maximum number of posts written by the active users
-def retrieve_similarity_graph(limit, write_csv, write_best_members, psql_interface):
+def retrieve_similarity_graph(limit, write_metadata, write_csv, write_best_members, psql_interface):
     # Create a csv containing a node table and an edge table for all the members described in names_path
 
     members_folder = os.path.join(os.getcwd(), *["..", "res", "Members"])
@@ -282,17 +282,22 @@ def retrieve_similarity_graph(limit, write_csv, write_best_members, psql_interfa
     logging.debug(timestamped("The total number of active members is " + str(len(active_members)) + "."))
 
     
-    persist_metadata(all_members = all_members, 
-                     active_members = active_members, 
-                     psql_interface = psql_interface)
+    if write_metadata == True:
+        persist_metadata(all_members = all_members, 
+                        active_members = active_members, 
+                        psql_interface = psql_interface)
 
-    logging.info("Members metadata was written.")
+        logging.info("Members metadata was written.")
+    else:
+        logging.info("Skipped writing member metadata.")
 
     # ----------------------------------------------------------------------#
 
     if write_best_members == True:
         persist_best_members(active_members = active_members,
                            psql_interface = psql_interface)
+    else:
+        logging.info("Skipped writing best members.")
     
 
     similar_usernames_tuples_global, similar_dbs_dict = get_similar_usernames_and_dbs(active_members, 
@@ -300,8 +305,8 @@ def retrieve_similarity_graph(limit, write_csv, write_best_members, psql_interfa
 
     if write_csv == True:
         write_csv_data(similar_dbs_dict, similar_usernames_tuples_global, active_members)
-
-    exit()
+    else:
+        logging.info("Skipped writing csvs.")
 
     similar_usernames_dict_global = tuples_to_dict(similar_usernames_tuples_global)
     connected_components_count = get_connected_components_count(similar_usernames_dict_global)
@@ -344,11 +349,6 @@ if __name__ == "__main__":
     # TODO DEBUG findfont: score(<Font 'Trebuchet MS' (trebuc.ttf) normal normal 400 normal>) = 10.05 
     # solve that ^
     
-    feat_type = "bow"
-    use_presence = False
-    n = 1
-    posts_args = (feat_type, use_presence, n)
-    
     pi = Postgres_interface()
     pi.start_server()
 
@@ -358,21 +358,40 @@ if __name__ == "__main__":
     # another sol which is even better, and is implemented in this code (Postgres_interface.py),
     # is to sort them alphabetically and get the first few from each database
     similar_usernames_dict, df = retrieve_similarity_graph(limit = 0, 
-                                                           write_csv = True,
-                                                           write_best_members = True, 
+                                                           write_metadata = False,
+                                                           write_csv = False,
+                                                           write_best_members = False, 
                                                            psql_interface = pi)
     # clusters will be a list of lists of Member objects
     clusters = get_member_clusters(similar_usernames_dict = similar_usernames_dict, df = df)
 
     # --------------------------- #
 
-    # TODO get all the suspects for the whole data set
-    get_suspects("k_means")
+    feat_type = ["bow", "n_grams", "function_words_bow"]
+    use_presence = False
+    n = 5
+    posts_args = (feat_type, use_presence, n)
+
+    results = get_suspects(method = "intuitive", 
+                            clusters = clusters, 
+                            psql_interface = pi, 
+                            posts_args = posts_args, 
+                            reduce_dim = True,
+                            plot = False,
+                            dim_reduction = "tsne",
+                            n_components = 2, # setting this to a different value while still plotting will lead
+                                              # to an error
+                            testing = False)
+
+    total = len(results)
+    total_groups = 0
+    for i in results:
+        group_size, group_labels = results[i]
+        total_groups += group_size
+    logging.info("There are " + str(total_groups) + " people who own more than 1 account.")
 
     # TODO
     # pi.stop_server()
 
-
-    # TODO add more features (function words in res)
 
     

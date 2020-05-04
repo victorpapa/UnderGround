@@ -29,14 +29,16 @@ def get_features_dict_for_post(post, feature, presence, n = 1):
         text[i] = ps.stem(text[i])
     del ps
 
-    if feature == "bow":
-        feat_dict = get_bow(text)
-    elif feature == "n_grams":
+    feat_dict = {}
+
+    if "bow" in feature:
+        feat_dict.update(get_bow(text))
+    elif "n_grams" in feature:
         if n == 1: 
             logging.warning(timestamped("Did you forget to set n when querying n_grams?"))
-        feat_dict = get_n_grams(text, n)
-    elif feature == "function_words_bow":
-        feat_dict = get_function_words_bow(text)
+        feat_dict.update(get_n_grams(text, n))
+    elif "function_words_bow" in feature:
+        feat_dict.update(get_function_words_bow(text))
     else:
         logging.critical(timestamped("Feature type " + feature + " not implemented."))
 
@@ -420,6 +422,7 @@ def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, plot,
         reducer = PCA(n_components = n_components)
     elif dim_reduction == "tsne":
         reducer = TSNE(n_components = n_components)
+        
     for i in range(len(clusters)):
 
         cluster = clusters[i]
@@ -441,9 +444,11 @@ def get_suspects(method, clusters, psql_interface, posts_args, reduce_dim, plot,
 
         if suspect_count == 0:
             logging.debug(timestamped("Cannot analyse this cluster. It doesn't have any features.\n"))
+            to_ret[i] = (0, None)
             continue
         elif suspect_count == 1:
             logging.debug(timestamped("Cannot analyse this cluster. There is only 1 user with features in this cluster.\n"))
+            to_ret[i] = (0, None)
             continue
 
         feature_matrix = []

@@ -31,18 +31,41 @@ def plot_since_last_login():
     plt.ylabel("Number of Members")
     plt.show()
 
+def plot_time_since_registration(since_registration):
+    plt.plot(get_dict_keys(since_registration), get_dict_values(since_registration))
+    plt.xlabel("Days since registration")
+    plt.ylabel("Number of Members")
+    plt.show()
+
+def plot_age(age):
+    plt.plot(get_dict_keys(age), get_dict_values(age))
+    # plt.xticks([k for k in get_dict_keys(age) if int(k) % 10 == 0 or k == "2"])
+    plt.xlabel("Age")
+    plt.ylabel("Number of Members")
+    plt.show()
+
+def plot_time_spent(time_spent):
+    plt.plot(get_dict_keys(time_spent), get_dict_values(time_spent))
+    plt.xticks(get_dict_keys(time_spent)[::len(time_spent) // 10])
+    plt.xlabel("Time Spent")
+    plt.ylabel("Number of Members")
+    plt.show()
+    
+def plot_location(location):    
+    plt.plot(get_dict_keys(location)[:7], get_dict_values(location)[:7])
+    plt.xlabel("Location")
+    plt.ylabel("Number of Members")
+    plt.show()
+
 def has_digits(string):
     return any(char.isdigit() for char in string)
 
-def has_dashes(string):
-    return any(char == "-" for char in string)
+def dash_count(string):
+    return string.count("-")
 
 if __name__ == "__main__":
 
-
-    # plot_since_last_login()
-
-    os.chdir(os.path.join("..", *["out2", "Members_metadata"]))
+    os.chdir(os.path.join("..", *["out", "Members_metadata"]))
     metadata_files = os.listdir(os.getcwd())
 
     age = {}
@@ -83,14 +106,11 @@ if __name__ == "__main__":
                         time_spent[curr_field] = 1
 
                 elif i == 2: # Location
-                    if curr_field.lower() == "none":
-                        i += 1
-                        continue
 
                     location_name = curr_field
 
                     curr_field = metadata_fields[i+1]
-                    while not (has_digits(curr_field) and has_dashes(curr_field)):
+                    while not (has_digits(curr_field) and dash_count(curr_field) == 2):
                         i += 1
                         location_name += " " + curr_field
                         curr_field = metadata_fields[i+1]
@@ -132,18 +152,22 @@ if __name__ == "__main__":
                 i += 1
 
     since_registration = {k: v for k, v in sorted(since_registration.items(), key=lambda x: x[0], reverse=True)}
-    plt.plot(get_dict_keys(since_registration), get_dict_values(since_registration))
-    plt.xlabel("Days since registration")
-    plt.ylabel("Number of Members")
-    plt.show()
+    
 
-    age = similar_dbs_dict = {k: v for k, v in sorted(age.items(), key=lambda x: x[0], reverse=False)}
+    age = similar_dbs_dict = {k: v for k, v in sorted(age.items(), key=lambda x: int(x[0]), reverse=False) if int(k) <= 80}
     time_spent = {k: v for k, v in sorted(time_spent.items(), key=lambda x: float(x[0]), reverse=False)}
     
 
     # add all country names, and make everything lowercase
     valid_countries = [country.name.lower() for country in list(pycountry.countries)]
-    location = {k.lower(): location[k] for k in location}
+    aux = {}
+    for k in location:
+        if k.lower() in aux:
+            aux[k.lower()] += location[k]
+        else:
+            aux[k.lower()] = location[k]
+
+    location = aux
 
     # all locations with cyrilic letters should be changed to "Russia"
     # same for all locations containing "Moscow" or ".ru"
@@ -185,22 +209,13 @@ if __name__ == "__main__":
     location.update(to_add)
 
     # print(sorted(valid_countries))
-    # TODO sort this mess
+
     # location = {k: location[k] for k in location if k in valid_countries}
-    location = {k.lower(): v for k, v in sorted(location.items(), key=lambda x: x[1], reverse=True)}
 
-    plt.plot(get_dict_keys(age), get_dict_values(age))
-    plt.xlabel("Age")
-    plt.ylabel("Number of Members")
-    plt.show()
+    location = {k: v for k, v in sorted(location.items(), key=lambda x: x[1], reverse=True) if k != "none"}
 
-    plt.plot(get_dict_keys(time_spent), get_dict_values(time_spent))
-    plt.xticks(get_dict_keys(time_spent)[::len(time_spent) // 10])
-    plt.xlabel("Time Spent")
-    plt.ylabel("Number of Members")
-    plt.show()
-    
-    plt.plot(get_dict_keys(location)[:10], get_dict_values(location)[:10])
-    plt.xlabel("Location")
-    plt.ylabel("Number of Members")
-    plt.show()
+    # plot_since_last_login()
+    # plot_time_since_registration(since_registration)
+    plot_age(age)
+    # plot_time_spent(time_spent)
+    # plot_location(location)
