@@ -46,6 +46,7 @@ class Postgres_interface:
     def start_server(self):
         subprocess.call("pg_ctl.exe -D \"W:\crimebb\" start")
 
+        # TODO this is really bad practice. Store the password somewhere else and remove all hard-coded passwords like this one.
         self.conn = psycopg2.connect(host="localhost", database="postgres", user="postgres", password="postgrespass12345")
         # see https://stackoverflow.com/questions/34484066/create-a-postgres-database-using-python
         # this flag is used to enable the creation of databases (don't really know why it's needed)
